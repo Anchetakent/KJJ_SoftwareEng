@@ -201,16 +201,14 @@ $is_forgot_pw = isset($_GET['action']) && $_GET['action'] === 'forgot_password';
         }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
         body { 
-            min-height: 100vh;
+            height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             letter-spacing: -0.01em;
             margin: 0;
             position: relative;
-            overflow-x: hidden;
-            overflow-y: auto;
-            padding: 24px 16px;
+            overflow: hidden;
             background-color: var(--slate-900);
         }
         
@@ -230,20 +228,20 @@ $is_forgot_pw = isset($_GET['action']) && $_GET['action'] === 'forgot_password';
 
         .login-card {
             background: white;
-            width: min(100%, 420px);
-            padding: 32px 24px;
-            border-radius: 20px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+            width: 400px;
+            padding: 48px;
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
             animation: fadeIn 0.4s ease-out;
             position: relative;
             z-index: 1;
         }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
-        .header { text-align: center; margin-bottom: 28px; }
+        .header { text-align: center; margin-bottom: 32px; }
         .header i { font-size: 2.5rem; color: var(--primary); margin-bottom: 12px; }
         .header h2 { color: var(--slate-900); font-weight: 700; font-size: 1.5rem; }
-        .header p { color: #64748b; font-size: 0.9rem; margin-top: 8px; line-height: 1.5; }
+        .header p { color: #64748b; font-size: 0.85rem; margin-top: 8px; line-height: 1.4; }
         
         .error-box { background: #fef2f2; color: #b91c1c; padding: 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 500; margin-bottom: 20px; }
         .success-box { background: #ecfdf5; color: #047857; padding: 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 500; margin-bottom: 20px; border: 1px solid #a7f3d0; }
@@ -255,7 +253,7 @@ $is_forgot_pw = isset($_GET['action']) && $_GET['action'] === 'forgot_password';
             padding: 12px 16px; 
             border: 1px solid #e2e8f0; 
             border-radius: 8px; 
-            font-size: 16px;
+            font-size: 0.95rem;
             transition: 0.2s;
             background: white;
         }
@@ -270,22 +268,6 @@ $is_forgot_pw = isset($_GET['action']) && $_GET['action'] === 'forgot_password';
         .footer a { color: var(--primary); text-decoration: none; font-weight: 600; transition: 0.2s; }
         .footer a:hover { color: var(--primary-hover); }
         .policy-text { font-size: 0.75rem; margin-top: 15px; color: #cbd5e1; }
-
-        @media (max-width: 640px) {
-            body { padding: 12px; }
-            .login-card {
-                width: 100%;
-                max-width: 100%;
-                padding: 24px 18px;
-                border-radius: 18px;
-            }
-            .header { margin-bottom: 24px; }
-            .header h2 { font-size: 1.35rem; }
-            .header p { font-size: 0.88rem; }
-            .input-group { margin-bottom: 16px; }
-            .input-group input, .input-group select, .btn-submit { min-height: 48px; }
-            .btn-submit { font-size: 0.98rem; }
-        }
     </style>
 </head>
 <body>
@@ -383,7 +365,8 @@ $is_forgot_pw = isset($_GET['action']) && $_GET['action'] === 'forgot_password';
                 <div class="input-group">
                     <label>System Role</label>
                     <select name="role" required>
-                        <option value="Faculty">Faculty</option>
+                        <option value="Teacher">Faculty / Teacher</option>
+                        <option value="adminoffice">Administrative Office</option>
                     </select>
                 </div>
                 <div class="input-group">
