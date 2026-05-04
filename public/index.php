@@ -51,28 +51,57 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $email = trim($_POST['email']);
         $password = $_POST['password'];
 
-        $stmt = $conn->prepare("SELECT id, role FROM users WHERE email = ? AND password = ?");
-        $stmt->bind_param("ss", $email, $password);
-        $stmt->execute();
-        $stmt->store_result();
+        // Use PDO for secure prepared statements when available
+        if (isset($pdo) && $pdo instanceof PDO) {
+            $stmt = $pdo->prepare("SELECT id, role, status FROM users WHERE email = ? AND password = ?");
+            $stmt->execute([$email, $password]);
+            $user = $stmt->fetch();
 
-        if ($stmt->num_rows > 0) {
-            $stmt->bind_result($id, $role);
-            $stmt->fetch();
+            if ($user) {
+                if (strtolower($user['status'] ?? 'active') === 'suspended') {
+                    $error_message = "Account suspended. Contact System Admin.";
+                    // Log blocked login attempt
+                    $log_stmt = $pdo->prepare("INSERT INTO audit_logs (user_email, action) VALUES (?, ?)");
+                    $log_stmt->execute([$email, 'Blocked login attempt - account suspended']);
+                } else {
+                    $_SESSION['admin_logged_in'] = true;
+                    $_SESSION['email'] = $email;
+                    $_SESSION['role'] = $user['role'];
 
-            $_SESSION['admin_logged_in'] = true;
-            $_SESSION['email'] = $email;
-            $_SESSION['role'] = $role;
+                    $log_stmt = $pdo->prepare("INSERT INTO audit_logs (user_email, action) VALUES (?, ?)");
+                    $log_stmt->execute([$email, 'Successful login via web portal.']);
 
-            $log_action = "Successful login via web portal.";
-            $log_stmt = $conn->prepare("INSERT INTO audit_logs (user_email, action) VALUES (?, ?)");
-            $log_stmt->bind_param("ss", $email, $log_action);
-            $log_stmt->execute();
-
-            header("Location: dashboard.php");
-            exit();
+                    header("Location: dashboard.php");
+                    exit();
+                }
+            } else {
+                $error_message = "Invalid email or password.";
+            }
         } else {
-            $error_message = "Invalid email or password.";
+            // Fallback to existing mysqli behavior if PDO isn't available
+            $stmt = $conn->prepare("SELECT id, role FROM users WHERE email = ? AND password = ?");
+            $stmt->bind_param("ss", $email, $password);
+            $stmt->execute();
+            $stmt->store_result();
+
+            if ($stmt->num_rows > 0) {
+                $stmt->bind_result($id, $role);
+                $stmt->fetch();
+
+                $_SESSION['admin_logged_in'] = true;
+                $_SESSION['email'] = $email;
+                $_SESSION['role'] = $role;
+
+                $log_action = "Successful login via web portal.";
+                $log_stmt = $conn->prepare("INSERT INTO audit_logs (user_email, action) VALUES (?, ?)");
+                $log_stmt->bind_param("ss", $email, $log_action);
+                $log_stmt->execute();
+
+                header("Location: dashboard.php");
+                exit();
+            } else {
+                $error_message = "Invalid email or password.";
+            }
         }
     }
 

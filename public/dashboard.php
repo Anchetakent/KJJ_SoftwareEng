@@ -29,6 +29,133 @@ if ($selected_section) {
     }
 }
 
+// System Admin actions: suspend/unsuspend users, reset passwords, and prepare users/logs for view
+$users = null;
+$logs = null;
+if ($user_role === 'System Admin') {
+    // Handle suspension toggle
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_status']) && isset($pdo)) {
+        $uid = (int)$_POST['user_id'];
+        try {
+            $stmt = $pdo->prepare("SELECT email, status FROM users WHERE id = ?");
+            $stmt->execute([$uid]);
+            $u = $stmt->fetch();
+            if ($u) {
+                $newStatus = (strtolower($u['status'] ?? 'active') === 'suspended') ? 'Active' : 'Suspended';
+                $upd = $pdo->prepare("UPDATE users SET status = ? WHERE id = ?");
+                $upd->execute([$newStatus, $uid]);
+                $action = ($newStatus === 'Suspended') ? "Account suspended by {$user_email}" : "Account reactivated by {$user_email}";
+                $log = $pdo->prepare("INSERT INTO audit_logs (user_email, action) VALUES (?, ?)");
+                $log->execute([$u['email'], $action]);
+                $_SESSION['flash_success'] = "User status updated.";
+            }
+        } catch (Exception $e) {
+            error_log('Suspend toggle failed: ' . $e->getMessage());
+            $_SESSION['flash_error'] = "Failed to update status.";
+        }
+        header('Location: dashboard.php?view=users');
+        exit();
+    }
+
+    // Handle manual password reset
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_password']) && isset($pdo)) {
+        $uid = (int)$_POST['user_id'];
+        try {
+            $stmt = $pdo->prepare("SELECT email FROM users WHERE id = ?");
+            $stmt->execute([$uid]);
+            $u = $stmt->fetch();
+            if ($u) {
+                // Generate an 8-character temporary password
+                $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+                $temp = '';
+                $max = strlen($chars) - 1;
+                for ($i = 0; $i < 8; $i++) { $temp .= $chars[random_int(0, $max)]; }
+
+                $upd = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+                $upd->execute([$temp, $uid]);
+
+                $log = $pdo->prepare("INSERT INTO audit_logs (user_email, action) VALUES (?, ?)");
+                $log->execute([$u['email'], "Password reset by {$user_email}"]);
+
+                $_SESSION['flash_success'] = "Temporary password for {$u['email']}: <strong>" . htmlspecialchars($temp) . "</strong>";
+            }
+        } catch (Exception $e) {
+            error_log('Reset password failed: ' . $e->getMessage());
+            $_SESSION['flash_error'] = "Failed to reset password.";
+        }
+        header('Location: dashboard.php?view=users');
+        exit();
+    }
+
+    // Handle permanent user deletion (confirmation required)
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_delete_user']) && isset($pdo)) {
+        $uid = (int)$_POST['user_id'];
+        try {
+            $stmt = $pdo->prepare("SELECT email, role FROM users WHERE id = ?");
+            $stmt->execute([$uid]);
+            $u = $stmt->fetch();
+            if ($u) {
+                // Safety: do not allow deleting System Admin role
+                if (strtolower($u['role']) === 'system admin') {
+                    $_SESSION['flash_error'] = "Cannot delete a System Admin account.";
+                } else {
+                    $del = $pdo->prepare("DELETE FROM users WHERE id = ?");
+                    $del->execute([$uid]);
+
+                    $log = $pdo->prepare("INSERT INTO audit_logs (user_email, action) VALUES (?, ?)");
+                    $log->execute([$u['email'], "Account permanently deleted by {$user_email}"]);
+
+                    $_SESSION['flash_success'] = "User " . htmlspecialchars($u['email']) . " deleted.";
+                }
+            }
+        } catch (Exception $e) {
+            error_log('Delete user failed: ' . $e->getMessage());
+            $_SESSION['flash_error'] = "Failed to delete user.";
+        }
+        header('Location: dashboard.php?view=users');
+        exit();
+    }
+
+    // Prepare users list (PDO)
+    try {
+        if (isset($pdo)) {
+            // Exclude the System Admin role from the list
+            $u_stmt = $pdo->query("SELECT id, email, role, COALESCE(status, 'Active') AS status FROM users WHERE role <> 'System Admin' ORDER BY id ASC");
+            $users = $u_stmt->fetchAll();
+        }
+    } catch (Exception $e) {
+        error_log('Failed to fetch users: ' . $e->getMessage());
+    }
+
+    // Prepare audit logs with optional filters
+    try {
+        $where = [];
+        $params = [];
+        if (!empty($_GET['q'])) {
+            $where[] = "(user_email LIKE ? OR action LIKE ?)";
+            $q = '%' . $_GET['q'] . '%';
+            $params[] = $q; $params[] = $q;
+        }
+        if (!empty($_GET['date'])) {
+            // Expect YYYY-MM-DD
+            $where[] = "DATE(log_time) = ?";
+            $params[] = $_GET['date'];
+        }
+        $sql = "SELECT * FROM audit_logs";
+        if (!empty($where)) {
+            $sql .= " WHERE " . implode(' AND ', $where);
+        }
+        $sql .= " ORDER BY log_time DESC LIMIT 200";
+        if (isset($pdo)) {
+            $lstmt = $pdo->prepare($sql);
+            $lstmt->execute($params);
+            $logs = $lstmt->fetchAll();
+        }
+    } catch (Exception $e) {
+        error_log('Failed to fetch logs: ' . $e->getMessage());
+    }
+}
+
 if (isset($_POST['export_csv']) && $current_section_id) {
     $export_tree = ['Midterm' => [], 'Finals' => []];
     $export_scores = [];

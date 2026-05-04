@@ -45,44 +45,97 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
         </header>
 
         <main class="content-area">
+            <?php if (isset($_SESSION['flash_success'])): ?><div class="success-box"><?php echo $_SESSION['flash_success']; unset($_SESSION['flash_success']); ?></div><?php endif; ?>
+            <?php if (isset($_SESSION['flash_error'])): ?><div class="error-box"><?php echo $_SESSION['flash_error']; unset($_SESSION['flash_error']); ?></div><?php endif; ?>
             <?php if ($user_role === 'System Admin'): ?>
                 <?php if ($view === 'users'): ?>
                     <div class="data-card">
                         <div class="card-header">
                             <h3 style="font-size: 1rem;">System Accounts</h3>
-                            <button class="btn-save" style="padding: 8px 16px; font-size: 0.8rem;">+ Add User</button>
                         </div>
                         <table>
-                            <thead><tr><th>ID</th><th>Email Address</th><th>Role</th><th>Status</th></tr></thead>
+                            <thead><tr><th>ID</th><th>Email Address</th><th>Role</th><th>Status</th><th style="text-align: right;">Manage</th></tr></thead>
                             <tbody>
-                                <?php 
-                                $users_res = $conn->query("SELECT id, email, role FROM users");
-                                while($u = $users_res->fetch_assoc()): ?>
-                                    <tr>
-                                        <td style="color: var(--text-muted);">#<?php echo $u['id']; ?></td>
-                                        <td><strong><?php echo htmlspecialchars($u['email']); ?></strong></td>
-                                        <td><?php echo $u['role']; ?></td>
-                                        <td><span class="status-pill">Active</span></td>
-                                    </tr>
-                                <?php endwhile; ?>
+                                <?php if (!empty($users)): ?>
+                                    <?php foreach ($users as $u): ?>
+                                        <tr>
+                                            <td style="color: var(--text-muted);">#<?php echo $u['id']; ?></td>
+                                            <td><strong><?php echo htmlspecialchars($u['email']); ?></strong></td>
+                                            <td><?php echo $u['role']; ?></td>
+                                            <?php $isSusp = strtolower($u['status']) === 'suspended'; ?>
+                                            <td><span class="status-pill<?php echo $isSusp ? ' suspended' : ''; ?>"><?php echo htmlspecialchars($u['status']); ?></span></td>
+                                            <td style="text-align: right;">
+                                                <form method="POST" style="display:inline;">
+                                                    <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
+                                                    <button type="submit" name="toggle_status" class="btn-pill" style="padding:6px 10px;"><?php echo $isSusp ? 'Reactivate' : 'Suspend'; ?></button>
+                                                </form>
+                                                <form method="POST" style="display:inline; margin-left:8px;">
+                                                    <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
+                                                    <button type="submit" name="reset_password" class="btn-pill" style="background:#f8fafc; color:var(--slate-700); padding:6px 10px;">Reset Password</button>
+                                                </form>
+                                                <?php if ($isSusp): ?>
+                                                    <button type="button" class="btn-pill" style="background: var(--danger); color: white; margin-left:8px; padding:6px 10px;" onclick="openDeleteModal(<?php echo $u['id']; ?>, '<?php echo addslashes(htmlspecialchars($u['email'])); ?>')">Delete</button>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="5" style="color: var(--text-muted);">No accounts found.</td></tr>
+                                <?php endif; ?>
                             </tbody>
                         </table>
                     </div>
+                    <!-- Delete Confirmation Modal -->
+                    <div id="deleteModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); align-items:center; justify-content:center; z-index:2000;">
+                        <div style="background: white; padding: 20px; border-radius: 8px; width: 420px; max-width: 90%;">
+                            <h3 style="margin-top:0;">Confirm Delete</h3>
+                            <p>Are you sure you want to <strong>permanently delete</strong> the user <span id="delUserEmail" style="font-weight:700;"></span>? This action cannot be undone.</p>
+                            <form method="POST" id="deleteUserForm" style="display:flex; gap:8px; justify-content:flex-end;">
+                                <input type="hidden" name="user_id" id="deleteUserId" value="">
+                                <button type="button" onclick="closeDeleteModal()" class="btn-pill" style="background:#f3f4f6; color:var(--slate-700);">Cancel</button>
+                                <button type="submit" name="confirm_delete_user" class="btn-pill" style="background: var(--danger); color: #fff;">Delete</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <script>
+                        function openDeleteModal(id, email) {
+                            document.getElementById('deleteUserId').value = id;
+                            document.getElementById('delUserEmail').textContent = email;
+                            document.getElementById('deleteModal').style.display = 'flex';
+                        }
+                        function closeDeleteModal() {
+                            document.getElementById('deleteUserId').value = '';
+                            document.getElementById('delUserEmail').textContent = '';
+                            document.getElementById('deleteModal').style.display = 'none';
+                        }
+                    </script>
                 <?php elseif ($view === 'logs'): ?>
                     <div class="data-card">
                         <div class="card-header"><h3 style="font-size: 1rem;">Recent Activity</h3></div>
+                        <div style="margin-bottom: 10px; padding: 12px 20px 0 20px; display:flex; gap:12px; align-items:center;">
+                            <form method="GET" style="display:flex; gap:8px; align-items:center;">
+                                <input type="hidden" name="view" value="logs">
+                                <input type="text" name="q" placeholder="Search by email or action" value="<?php echo isset($_GET['q']) ? htmlspecialchars($_GET['q']) : ''; ?>" style="padding:8px; border:1px solid var(--border-color); border-radius:6px;">
+                                <input type="date" name="date" value="<?php echo isset($_GET['date']) ? htmlspecialchars($_GET['date']) : ''; ?>" style="padding:8px; border:1px solid var(--border-color); border-radius:6px;">
+                                <button type="submit" class="btn-pill">Filter</button>
+                                <a href="dashboard.php?view=logs" class="btn-pill" style="background:#f8fafc; color:var(--slate-700); text-decoration:none;">Clear</a>
+                            </form>
+                        </div>
                         <table>
                             <thead><tr><th>Timestamp</th><th>User Account</th><th>Logged Action</th></tr></thead>
                             <tbody>
-                                <?php 
-                                $logs_res = $conn->query("SELECT * FROM audit_logs ORDER BY log_time DESC LIMIT 50");
-                                while($l = $logs_res->fetch_assoc()): ?>
-                                    <tr>
-                                        <td style="color: var(--text-muted); font-size: 0.8rem;"><?php echo date("M d, Y • H:i:s", strtotime($l['log_time'])); ?></td>
-                                        <td><strong><?php echo htmlspecialchars($l['user_email']); ?></strong></td>
-                                        <td><?php echo htmlspecialchars($l['action']); ?></td>
-                                    </tr>
-                                <?php endwhile; ?>
+                                <?php if (!empty($logs)): ?>
+                                    <?php foreach ($logs as $l): ?>
+                                        <tr>
+                                            <td style="color: var(--text-muted); font-size: 0.8rem;"><?php echo date("M d, Y • H:i:s", strtotime($l['log_time'])); ?></td>
+                                            <td><strong><?php echo htmlspecialchars($l['user_email']); ?></strong></td>
+                                            <td><?php echo htmlspecialchars($l['action']); ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="3" style="color: var(--text-muted);">No log entries found.</td></tr>
+                                <?php endif; ?>
                             </tbody>
                         </table>
                     </div>

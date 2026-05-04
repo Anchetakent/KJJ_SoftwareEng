@@ -63,6 +63,7 @@ body { display: flex; height: 100vh; background-color: var(--bg-main); color: va
 .status-chip.warning { background: #fff7ed; color: #c2410c; }
 .status-chip.good { background: #f0fdf4; color: #166534; }
 .status-pill { display: inline-block; padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; background: #ecfdf5; color: #059669; }
+.status-pill.suspended { background: #fee2e2 !important; color: var(--danger) !important; border: 1px solid rgba(239,68,68,0.12); }
 .chart-shell { position: relative; height: 320px; }
 .notes-display { background: var(--note-bg); border-bottom: 1px solid var(--border-color); padding: 20px 24px; display: flex; gap: 16px; align-items: flex-start; }
 .notes-display i { color: var(--primary); font-size: 1.1rem; margin-top: 2px; }
