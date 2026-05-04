@@ -51,6 +51,10 @@ $is_forgot_pw = $is_forgot_pw ?? false;
                 </div>
                 <button type="submit" name="verify_forgot_otp" class="btn-submit">Verify & Continue</button>
             </form>
+            <form method="POST" class="resend-form" data-resend-form>
+                <input type="hidden" name="resend_otp" value="1">
+                <button type="submit" class="resend-btn" data-resend-button data-cooldown-seconds="60">Resend Code</button>
+            </form>
             <div class="footer"><a href="index.php?cancel_mfa=1"><i class="fa-solid fa-arrow-left"></i> Cancel Recovery</a></div>
 
         <?php elseif ($is_forgot_pw): ?>
@@ -89,6 +93,10 @@ $is_forgot_pw = $is_forgot_pw ?? false;
                     <input type="text" name="otp_code" placeholder="123456" maxlength="6" required autocomplete="off" style="text-align: center; letter-spacing: 8px; font-size: 1.25rem; font-weight: 700;">
                 </div>
                 <button type="submit" name="verify_register_otp" class="btn-submit">Verify & Create Account</button>
+            </form>
+            <form method="POST" class="resend-form" data-resend-form>
+                <input type="hidden" name="resend_otp" value="1">
+                <button type="submit" class="resend-btn" data-resend-button data-cooldown-seconds="60">Resend Code</button>
             </form>
             <div class="footer"><a href="index.php?cancel_mfa=1"><i class="fa-solid fa-arrow-left"></i> Cancel Registration</a></div>
 
