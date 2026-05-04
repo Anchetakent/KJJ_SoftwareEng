@@ -1,30 +1,3 @@
-<style>
-    .sidebar { width: 280px; background: #0f172a; color: white; display: flex; flex-direction: column; height: 100vh; }
-    .sidebar-header { padding: 32px 24px; display: flex; align-items: center; gap: 12px; }
-    .sidebar-header i { font-size: 1.5rem; color: #10b981; }
-    .sidebar-header h2 { font-size: 1.25rem; font-weight: 800; letter-spacing: 0.5px; }
-
-    .sidebar-menu { flex: 1; padding: 0 16px; }
-    .menu-label { padding: 24px 12px 8px; font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
-    .sidebar-menu a { 
-        display: flex; 
-        align-items: center; 
-        gap: 12px; 
-        padding: 12px; 
-        color: #94a3b8; 
-        text-decoration: none; 
-        font-size: 0.9rem; 
-        font-weight: 500; 
-        border-radius: 8px; 
-        transition: 0.2s;
-    }
-    .sidebar-menu a:hover, .sidebar-menu a.active { background: rgba(255,255,255,0.05); color: white; }
-    .sidebar-menu a.active { color: #10b981; }
-
-    .sidebar-footer { padding: 24px; border-top: 1px solid rgba(255,255,255,0.05); }
-    .sidebar-footer a { color: #f87171; text-decoration: none; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; }
-</style>
-
 <div class="sidebar">
     <div class="sidebar-header">
         <i class="fa-solid fa-graduation-cap"></i>
