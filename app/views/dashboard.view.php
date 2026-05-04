@@ -11,11 +11,13 @@ $has_section_notes = trim((string) $current_section_notes) !== '';
 $duplicate_error = $duplicate_error ?? '';
 $analytics_distribution = $analytics_distribution ?? [];
 $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' => 0];
+$csrf_token = $csrf_token ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="csrf-token" content="<?php echo h($csrf_token); ?>">
     <title>Workspace | EduPulse</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -33,20 +35,23 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
                 </button>
                 <div style="font-weight: 600; color: var(--text-muted);">
                     Workspace / <?php 
-                        if ($view) echo ucfirst($view);
-                        else echo $selected_section ? "Section $selected_section" : "Overview"; 
+                        if ($view) {
+                            echo h(ucfirst($view));
+                        } else {
+                            echo $selected_section ? 'Section ' . h($selected_section) : 'Overview';
+                        }
                     ?>
                 </div>
             </div>
             <div class="user-pill">
-                <span class="badge"><?php echo $user_role; ?></span>
-                <?php echo htmlspecialchars($user_email); ?>
+                <span class="badge"><?php echo h($user_role); ?></span>
+                <?php echo h($user_email); ?>
             </div>
         </header>
 
         <main class="content-area">
-            <?php if (isset($_SESSION['flash_success'])): ?><div class="success-box"><?php echo $_SESSION['flash_success']; unset($_SESSION['flash_success']); ?></div><?php endif; ?>
-            <?php if (isset($_SESSION['flash_error'])): ?><div class="error-box"><?php echo $_SESSION['flash_error']; unset($_SESSION['flash_error']); ?></div><?php endif; ?>
+            <?php if (isset($_SESSION['flash_success'])): ?><div class="success-box"><?php echo h($_SESSION['flash_success']); unset($_SESSION['flash_success']); ?></div><?php endif; ?>
+            <?php if (isset($_SESSION['flash_error'])): ?><div class="error-box"><?php echo h($_SESSION['flash_error']); unset($_SESSION['flash_error']); ?></div><?php endif; ?>
             <?php if ($user_role === 'System Admin'): ?>
                 <?php if ($view === 'users'): ?>
                     <div class="data-card">
@@ -59,22 +64,24 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
                                 <?php if (!empty($users)): ?>
                                     <?php foreach ($users as $u): ?>
                                         <tr>
-                                            <td style="color: var(--text-muted);">#<?php echo $u['id']; ?></td>
-                                            <td><strong><?php echo htmlspecialchars($u['email']); ?></strong></td>
-                                            <td><?php echo $u['role']; ?></td>
+                                            <td style="color: var(--text-muted);">#<?php echo h($u['id']); ?></td>
+                                            <td><strong><?php echo h($u['email']); ?></strong></td>
+                                            <td><?php echo h($u['role']); ?></td>
                                             <?php $isSusp = strtolower($u['status']) === 'suspended'; ?>
-                                            <td><span class="status-pill<?php echo $isSusp ? ' suspended' : ''; ?>"><?php echo htmlspecialchars($u['status']); ?></span></td>
+                                            <td><span class="status-pill<?php echo $isSusp ? ' suspended' : ''; ?>"><?php echo h($u['status']); ?></span></td>
                                             <td style="text-align: right;">
                                                 <form method="POST" style="display:inline;">
-                                                    <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
+                                                    <?php echo csrf_field(); ?>
+                                                    <input type="hidden" name="user_id" value="<?php echo h($u['id']); ?>">
                                                     <button type="submit" name="toggle_status" class="btn-pill" style="padding:6px 10px;"><?php echo $isSusp ? 'Reactivate' : 'Suspend'; ?></button>
                                                 </form>
                                                 <form method="POST" style="display:inline; margin-left:8px;">
-                                                    <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
+                                                    <?php echo csrf_field(); ?>
+                                                    <input type="hidden" name="user_id" value="<?php echo h($u['id']); ?>">
                                                     <button type="submit" name="reset_password" class="btn-pill" style="background:#f8fafc; color:var(--slate-700); padding:6px 10px;">Reset Password</button>
                                                 </form>
                                                 <?php if ($isSusp): ?>
-                                                    <button type="button" class="btn-pill" style="background: var(--danger); color: white; margin-left:8px; padding:6px 10px;" onclick="openDeleteModal(<?php echo $u['id']; ?>, '<?php echo addslashes(htmlspecialchars($u['email'])); ?>')">Delete</button>
+                                                    <button type="button" class="btn-pill" style="background: var(--danger); color: white; margin-left:8px; padding:6px 10px;" onclick="openDeleteModal(<?php echo (int) $u['id']; ?>, <?php echo h(json_encode($u['email'])); ?>)">Delete</button>
                                                 <?php endif; ?>
                                             </td>
                                         </tr>
@@ -87,13 +94,30 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
                     </div>
                     <!-- Delete Confirmation Modal -->
                     <div id="deleteModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); align-items:center; justify-content:center; z-index:2000;">
-                        <div style="background: white; padding: 20px; border-radius: 8px; width: 420px; max-width: 90%;">
-                            <h3 style="margin-top:0;">Confirm Delete</h3>
-                            <p>Are you sure you want to <strong>permanently delete</strong> the user <span id="delUserEmail" style="font-weight:700;"></span>? This action cannot be undone.</p>
-                            <form method="POST" id="deleteUserForm" style="display:flex; gap:8px; justify-content:flex-end;">
+                        <div style="background: white; padding: 24px; border-radius: 12px; width: 460px; max-width: 92%; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);">
+                            <div style="display:flex; gap:12px; align-items:center; margin-bottom: 12px;">
+                                <div style="width:42px; height:42px; border-radius:999px; background:#fee2e2; color:#b91c1c; display:flex; align-items:center; justify-content:center;">
+                                    <i class="fa-solid fa-triangle-exclamation"></i>
+                                </div>
+                                <div>
+                                    <h3 style="margin:0; font-size: 1.05rem;">Delete user account</h3>
+                                    <div style="color: var(--text-muted); font-size: 0.85rem;">This action is irreversible.</div>
+                                </div>
+                            </div>
+                            <div style="background:#fff7ed; border:1px solid #fdba74; color:#9a3412; padding:10px 12px; border-radius:8px; font-size:0.85rem; margin-bottom: 12px;">
+                                You are about to permanently delete <strong id="delUserEmail" style="font-weight:700;"></strong>. All access will be removed immediately and audit history will remain.
+                            </div>
+                            <form method="POST" id="deleteUserForm" style="display:flex; flex-direction: column; gap:12px;" onsubmit="return document.getElementById('confirmDeleteAck').checked;">
+                                <?php echo csrf_field(); ?>
                                 <input type="hidden" name="user_id" id="deleteUserId" value="">
-                                <button type="button" onclick="closeDeleteModal()" class="btn-pill" style="background:#f3f4f6; color:var(--slate-700);">Cancel</button>
-                                <button type="submit" name="confirm_delete_user" class="btn-pill" style="background: var(--danger); color: #fff;">Delete</button>
+                                <label style="display:flex; align-items:center; gap:8px; margin: 0; font-size: 0.85rem; color: var(--slate-700); padding:10px 12px; border:1px solid var(--border-color); border-radius:8px; background:#f8fafc;">
+                                    <input type="checkbox" id="confirmDeleteAck" required>
+                                    I understand this action is permanent.
+                                </label>
+                                <div style="display:flex; gap:8px; justify-content:flex-end;">
+                                    <button type="button" onclick="closeDeleteModal()" class="btn-pill" style="background:#f3f4f6; color:var(--slate-700);">Cancel</button>
+                                    <button type="submit" name="confirm_delete_user" class="btn-pill" style="background: var(--danger); color: #fff;">Delete</button>
+                                </div>
                             </form>
                         </div>
                     </div>
@@ -102,6 +126,8 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
                         function openDeleteModal(id, email) {
                             document.getElementById('deleteUserId').value = id;
                             document.getElementById('delUserEmail').textContent = email;
+                            const ack = document.getElementById('confirmDeleteAck');
+                            if (ack) ack.checked = false;
                             document.getElementById('deleteModal').style.display = 'flex';
                         }
                         function closeDeleteModal() {
@@ -159,6 +185,7 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
                             <h3 style="font-size: 1.2rem; font-weight: 800; color: var(--slate-700);"><?php echo htmlspecialchars($selected_section); ?></h3>
                             <div style="display: flex; gap: 10px;">
                                 <form method="POST" style="margin: 0;">
+                                    <?php echo csrf_field(); ?>
                                     <button type="submit" name="export_csv" class="btn-pill" style="color: #0284c7; border-color: #bae6fd; background: #f0f9ff;"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
                                 </form>
                                 <button onclick="openAddPane()" class="btn-pill"><i class="fa-solid fa-user-plus"></i> Add Student</button>
@@ -175,6 +202,7 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
 
                         <div id="add-student-pane" class="mgmt-pane">
                             <form method="POST" style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 15px; align-items: end;">
+                                <?php echo csrf_field(); ?>
                                 <div><label class="pane-label">ID Number</label><input type="text" name="student_id" class="grade-input" style="width: 100%; text-align:left;" required></div>
                                 <div><label class="pane-label">Full Name</label><input type="text" name="student_name" class="grade-input" style="width: 100%; text-align:left;" required></div>
                                 <button type="submit" name="add_student" class="btn-save">Add to List</button>
@@ -183,6 +211,7 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
 
                         <div id="edit-student-pane" class="mgmt-pane" style="background: #fffaf0; border-bottom: 1px solid #fbd38d;">
                             <form method="POST" style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 15px; align-items: end;">
+                                <?php echo csrf_field(); ?>
                                 <input type="hidden" name="old_student_id" id="edit-old-id">
                                 <div><label class="pane-label">Update Student ID</label><input type="text" name="new_student_id" id="edit-new-id" class="grade-input" style="width: 100%; text-align:left;" required></div>
                                 <div><label class="pane-label">Update Full Name</label><input type="text" name="new_student_name" id="edit-new-name" class="grade-input" style="width: 100%; text-align:left;" required></div>
@@ -192,6 +221,7 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
 
                         <div id="edit-class-pane" class="mgmt-pane">
                             <form method="POST">
+                                <?php echo csrf_field(); ?>
                                 <input type="hidden" name="old_section_name" value="<?php echo htmlspecialchars($selected_section); ?>">
                                 <div style="margin-bottom: 16px;"><label class="pane-label">Class Name</label><input type="text" name="new_section_name" class="grade-input" style="width: 100%; text-align:left;" value="<?php echo htmlspecialchars($selected_section); ?>" required></div>
                                 <div style="margin-bottom: 20px;"><label class="pane-label">Class Notes / Reminders</label><textarea name="notes" class="grade-input" style="width: 100%; height: 80px; text-align:left;"><?php echo htmlspecialchars($current_section_notes); ?></textarea></div>
@@ -201,6 +231,7 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
                                 </div>
                             </form>
                             <form method="POST" id="deleteClassForm">
+                                <?php echo csrf_field(); ?>
                                 <input type="hidden" name="section_to_delete" value="<?php echo htmlspecialchars($selected_section); ?>">
                                 <input type="hidden" name="delete_class" value="1">
                             </form>
@@ -262,8 +293,9 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
                                                     <?php endif; ?>
                                                 </td>
                                                 <td style="text-align: right;">
-                                                    <a class="action-link" onclick="openEditStudent('<?php echo htmlspecialchars($student['student_id']); ?>', '<?php echo addslashes($student['name']); ?>')"><i class="fa-solid fa-user-pen"></i></a>
+                                                    <a class="action-link" onclick="openEditStudent(<?php echo h(json_encode($student['student_id'])); ?>, <?php echo h(json_encode($student['name'])); ?>)"><i class="fa-solid fa-user-pen"></i></a>
                                                     <form method="POST" style="display:inline;" onsubmit="return confirm('Remove student?');">
+                                                        <?php echo csrf_field(); ?>
                                                         <input type="hidden" name="student_to_delete" value="<?php echo htmlspecialchars($student['student_id']); ?>">
                                                         <button type="submit" name="delete_student" class="action-link" style="background:none; border:none; padding:0; color: var(--danger);"><i class="fa-solid fa-user-minus"></i></button>
                                                     </form>
@@ -284,7 +316,8 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
                                 
                                 <div id="add-category-pane" class="mgmt-pane" style="margin-bottom: 16px; border: 1px solid var(--border-color); border-radius: 8px;">
                                     <form method="POST" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 15px; align-items: end;">
-                                        <input type="hidden" name="term" value="<?php echo $current_tab; ?>">
+                                        <?php echo csrf_field(); ?>
+                                        <input type="hidden" name="term" value="<?php echo h($current_tab); ?>">
                                         <div><label class="pane-label">Category Bucket (e.g. Quizzes)</label><input type="text" name="cat_name" class="grade-input" style="width: 100%; text-align: left;" required></div>
                                         <div><label class="pane-label">Overall Weight (%)</label><input type="number" step="0.01" name="weight" class="grade-input" style="width: 100%; text-align: left;" required></div>
                                         <div style="display: flex; gap: 10px;"><button type="submit" name="add_category" class="btn-save">Save Category</button><button type="button" onclick="togglePane('add-category-pane')" class="btn-pill">Cancel</button></div>
@@ -294,6 +327,7 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
                                 <div id="ass-form-pane" class="mgmt-pane" style="margin-bottom: 16px; border: 1px solid #38bdf8; border-radius: 8px; background: #f0f9ff;">
                                     <h5 style="margin-bottom: 12px; color: #0284c7;" id="ass-form-title">Add Assignment</h5>
                                     <form method="POST" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 15px; align-items: end;">
+                                        <?php echo csrf_field(); ?>
                                         <input type="hidden" name="category_id" id="ass-cat-id">
                                         <input type="hidden" name="assignment_id" id="ass-id">
                                         <div><label class="pane-label">Assignment Name (e.g. Quiz 1)</label><input type="text" name="ass_name" id="ass-name" class="grade-input" style="width: 100%; text-align: left;" required></div>
@@ -316,10 +350,11 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
                                             <div class="category-header">
                                                 <div>
                                                     <strong style="color: var(--primary); font-size: 1rem;"><?php echo htmlspecialchars($cat['name']); ?></strong>
-                                                    <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 8px;">(<?php echo $cat['weight']; ?>%)</span>
+                                                    <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 8px;">(<?php echo h($cat['weight']); ?>%)</span>
                                                 </div>
                                                 <form method="POST" onsubmit="return confirm('Delete this entire category and all grades?');" style="margin:0;">
-                                                    <input type="hidden" name="category_id" value="<?php echo $cat_id; ?>">
+                                                    <?php echo csrf_field(); ?>
+                                                    <input type="hidden" name="category_id" value="<?php echo h($cat_id); ?>">
                                                     <button type="submit" name="delete_category" style="background:none; border:none; color: var(--danger); cursor: pointer;"><i class="fa-solid fa-trash"></i></button>
                                                 </form>
                                             </div>
@@ -330,11 +365,12 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
                                                 <?php else: ?>
                                                     <?php foreach($cat['assignments'] as $ass): ?>
                                                         <div class="ass-item">
-                                                            <span><strong><?php echo htmlspecialchars($ass['name']); ?></strong> (Max: <?php echo $ass['max_score']; ?>)</span>
+                                                            <span><strong><?php echo h($ass['name']); ?></strong> (Max: <?php echo h($ass['max_score']); ?>)</span>
                                                             <div style="display: flex; gap: 10px;">
-                                                                <button type="button" onclick="openEditAssignment(<?php echo $ass['id']; ?>, '<?php echo addslashes($ass['name']); ?>', <?php echo $ass['max_score']; ?>)" style="background:none; border:none; color: var(--text-muted); cursor: pointer;"><i class="fa-solid fa-pen"></i></button>
+                                                                <button type="button" onclick="openEditAssignment(<?php echo (int) $ass['id']; ?>, <?php echo h(json_encode($ass['name'])); ?>, <?php echo h(json_encode((float) $ass['max_score'])); ?>)" style="background:none; border:none; color: var(--text-muted); cursor: pointer;"><i class="fa-solid fa-pen"></i></button>
                                                                 <form method="POST" onsubmit="return confirm('Delete assignment?');" style="margin:0;">
-                                                                    <input type="hidden" name="assignment_id" value="<?php echo $ass['id']; ?>">
+                                                                    <?php echo csrf_field(); ?>
+                                                                    <input type="hidden" name="assignment_id" value="<?php echo h($ass['id']); ?>">
                                                                     <button type="submit" name="delete_assignment" style="background:none; border:none; color: var(--danger); cursor: pointer;"><i class="fa-solid fa-xmark"></i></button>
                                                                 </form>
                                                             </div>
@@ -343,17 +379,18 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
                                                 <?php endif; ?>
                                             </div>
 
-                                            <button onclick="openAddAssignment(<?php echo $cat_id; ?>, '<?php echo addslashes($cat['name']); ?>')" class="btn-pill" style="width: 100%; justify-content: center; font-size: 0.75rem;"><i class="fa-solid fa-plus"></i> Add Assignment to Bucket</button>
+                                            <button onclick="openAddAssignment(<?php echo (int) $cat_id; ?>, <?php echo h(json_encode($cat['name'])); ?>)" class="btn-pill" style="width: 100%; justify-content: center; font-size: 0.75rem;"><i class="fa-solid fa-plus"></i> Add Assignment to Bucket</button>
                                         </div>
                                     <?php endforeach; ?>
                                 </div>
 
                                 <div style="margin-top: 16px; font-size: 0.85rem; font-weight: 700; color: <?php echo $total_weight == 100 ? 'var(--primary)' : 'var(--danger)'; ?>">
-                                    Total Combined Weight: <?php echo $total_weight; ?>% <?php if($total_weight != 100) echo "(Needs to equal 100%)"; ?>
+                                    Total Combined Weight: <?php echo h($total_weight); ?>% <?php if($total_weight != 100) echo "(Needs to equal 100%)"; ?>
                                 </div>
                             </div>
 
                             <form method="POST" id="gradebookForm" onsubmit="return false;">
+                                <?php echo csrf_field(); ?>
                                 <div class="gradebook-toolbar">
                                     <div class="gradebook-search">
                                         <label class="pane-label" for="studentGradeSearch">Search student</label>
@@ -367,7 +404,7 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
                                             <tr>
                                                 <th rowspan="2" style="width: 250px; border-bottom: none; vertical-align: bottom;">Student Name</th>
                                                 <?php foreach($tree[$current_tab] as $cat): ?>
-                                                    <th colspan="<?php echo max(1, count($cat['assignments'])); ?>" style="text-align: center; background: #e2e8f0; color: var(--slate-700); border-bottom: 2px solid white;"><?php echo htmlspecialchars($cat['name']); ?> (<?php echo $cat['weight']; ?>%)</th>
+                                                    <th colspan="<?php echo max(1, count($cat['assignments'])); ?>" style="text-align: center; background: #e2e8f0; color: var(--slate-700); border-bottom: 2px solid white;"><?php echo h($cat['name']); ?> (<?php echo h($cat['weight']); ?>%)</th>
                                                 <?php endforeach; ?>
                                                 <th rowspan="2" style="text-align: right; background: #f0fdf4; color: #047857; vertical-align: bottom; border-bottom: none;">Bucket Total</th>
                                             </tr>
@@ -377,7 +414,7 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
                                                         <th style="text-align: center; color: var(--danger); font-style: italic;">Empty</th>
                                                     <?php else: ?>
                                                         <?php foreach($cat['assignments'] as $ass): ?>
-                                                            <th style="text-align: center; font-size: 0.65rem;"><?php echo htmlspecialchars($ass['name']); ?><br>(/ <?php echo $ass['max_score']; ?>)</th>
+                                                            <th style="text-align: center; font-size: 0.65rem;"><?php echo h($ass['name']); ?><br>(/ <?php echo h($ass['max_score']); ?>)</th>
                                                         <?php endforeach; ?>
                                                     <?php endif; ?>
                                                 <?php endforeach; ?>
@@ -500,18 +537,18 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
                             <div class="analytics-summary">
                                 <div class="analytics-metric">
                                     <div class="label">Students</div>
-                                    <div class="value"><?php echo $section_total_students; ?></div>
+                                    <div class="value"><?php echo h($section_total_students); ?></div>
                                     <div class="subtext">All enrolled students</div>
                                 </div>
                                 <div class="analytics-metric">
                                     <div class="label">Analyzed</div>
-                                    <div class="value"><?php echo $analyzed_students; ?></div>
+                                    <div class="value"><?php echo h($analyzed_students); ?></div>
                                     <div class="subtext">Analyzed students</div>
                                 </div>
                                 <div class="analytics-metric">
                                     <div class="label">Passing Rate</div>
-                                    <div class="value"><?php echo $analytics_passing['passing_rate_percent']; ?>%</div>
-                                    <div class="subtext"><?php echo $analytics_passing['passing_count']; ?> students passed</div>
+                                    <div class="value"><?php echo h($analytics_passing['passing_rate_percent']); ?>%</div>
+                                    <div class="subtext"><?php echo h($analytics_passing['passing_count']); ?> students passed</div>
                                 </div>
                                 <div class="analytics-metric">
                                     <div class="label">At Risk</div>
@@ -541,7 +578,7 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
 
                                 <div class="analytics-card">
                                     <h4>Midterm Early Warning</h4>
-                                    <div class="value" style="font-size: 3rem; margin-top: 10px;"><?php echo $midterm_only_count; ?></div>
+                                    <div class="value" style="font-size: 3rem; margin-top: 10px;"><?php echo h($midterm_only_count); ?></div>
                                     <div class="subtext">Students with Midterm entered but Finals pending</div>
                                 </div>
                             </div>
@@ -699,7 +736,7 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
                                                                         $chip_class = 'good';
                                                                     }
                                                                 ?>
-                                                                <td style="text-align:center;"><span class="status-chip <?php echo $chip_class; ?>"><?php echo number_format($score, 1); ?>%</span></td>
+                                                                <td style="text-align:center;"><span class="status-chip <?php echo h($chip_class); ?>"><?php echo number_format($score, 1); ?>%</span></td>
                                                             <?php else: ?>
                                                                 <td style="text-align:center; color: var(--text-muted);">—</td>
                                                             <?php endif; ?>
@@ -731,6 +768,7 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
                             <i class="fa-solid fa-plus-circle" style="font-size: 3.5rem; color: var(--primary); margin-bottom: 24px;"></i>
                             <h2>Initialize New Class</h2>
                             <form method="POST" style="text-align: left;">
+                                <?php echo csrf_field(); ?>
                                 <div style="margin-bottom: 16px;"><label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; display: block;">Section Name</label><input type="text" name="section_name" class="grade-input" style="width: 100%; text-align:left; height: 50px;" required></div>
                                 <div style="margin-bottom: 24px;"><label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; display: block;">Class Type</label><select name="class_type" class="grade-input" style="width: 100%; text-align:left; height: 50px; background: white;" required><option value="Lecture">Lecture</option><option value="Lab">Laboratory (Lab)</option></select></div>
                                 <button type="submit" name="add_class" class="btn-save" style="width: 100%; height: 50px;">Create Workspace</button>
@@ -747,7 +785,7 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
         <div class="error-modal" onclick="event.stopPropagation()">
             <i class="fa-solid fa-circle-exclamation"></i>
             <h3>Transaction Failed</h3>
-            <p><?php echo $duplicate_error; ?></p>
+            <p><?php echo h($duplicate_error); ?></p>
             <button onclick="document.getElementById('duplicateModal').style.display='none'" class="btn-save" style="width: 100%; background: var(--danger);">Acknowledge</button>
         </div>
     </div>
@@ -758,7 +796,7 @@ $analytics_passing = $analytics_passing ?? ['passing_count' => 0, 'total_count' 
             <i class="fa-solid fa-triangle-exclamation"></i>
             <h3>Delete Class Permanently?</h3>
             <p>
-                This will delete <strong><?php echo htmlspecialchars($selected_section ?? 'this class'); ?></strong> and all related
+                This will delete <strong><?php echo h($selected_section ?? 'this class'); ?></strong> and all related
                 students, categories, assignments, and scores. This action cannot be undone.
             </p>
             <div class="delete-confirm-actions">

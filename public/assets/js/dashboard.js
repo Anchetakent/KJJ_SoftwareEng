@@ -59,6 +59,8 @@ function filterGradebookStudents(query) {
     }
 }
 
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
 (function () {
     const inputs = document.querySelectorAll('.gradebook-score-input');
     const statusEl = document.getElementById('gradebookSaveStatus');
@@ -123,6 +125,9 @@ function filterGradebookStudents(query) {
         formData.append('student_internal_id', studentInternalId);
         formData.append('assignment_id', assignmentId);
         formData.append('score', score);
+        if (csrfToken) {
+            formData.append('csrf_token', csrfToken);
+        }
 
         try {
             const response = await fetch(window.location.href, {
@@ -275,7 +280,14 @@ const GradeEditModal = {
             formData.append('student_internal_id', this.currentInput.getAttribute('data-student-internal-id'));
             formData.append('assignment_id', this.currentInput.getAttribute('data-assignment-id'));
             formData.append('score', value);
-            const response = await fetch(window.location.href, { method: 'POST', body: formData });
+            if (csrfToken) {
+                formData.append('csrf_token', csrfToken);
+            }
+            const response = await fetch(window.location.href, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData
+            });
             const data = await response.json();
             if (data.success) {
                 this.currentInput.value = value;

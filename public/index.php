@@ -1,11 +1,17 @@
 <?php
 // public/index.php
-session_start();
+require_once dirname(__DIR__) . '/app/includes/security.php';
+start_secure_session();
 require_once dirname(__DIR__) . '/config/db.php';
 require_once dirname(__DIR__) . '/app/includes/otp_service.php';
 
 $error_message = "";
 $success_message = "";
+
+if (!enforce_session_timeout() && !empty($_SESSION['session_expired'])) {
+    $error_message = "Your session expired. Please sign in again.";
+    unset($_SESSION['session_expired']);
+}
 
 // Initialize OTP Service
 $otpService = new OtpService($conn);
@@ -13,27 +19,98 @@ $otpService = new OtpService($conn);
 // Handle user clicking "Cancel" during any OTP or Reset phase
 if (isset($_GET['cancel_mfa'])) {
     session_unset();
+    session_regenerate_id(true);
     header("Location: index.php");
     exit();
 }
 
-// Handle "Resend OTP"
-if (isset($_POST['resend_otp'])) {
-    $email = $_SESSION['pending_email'] ?? '';
-    $context = $_SESSION['otp_context'] ?? 'registration';
+define('LOGIN_RATE_LIMIT_MAX', 5);
+define('LOGIN_RATE_LIMIT_WINDOW', 900);
+define('LOGIN_RATE_LIMIT_CLEANUP', 86400);
 
-    if ($email) {
-        $result = $otpService->generateAndSendOtp($email, $context);
-        if ($result['success']) {
-            $success_message = "A new verification code has been sent to your email.";
-            $_SESSION['last_otp_send_time'] = time(); // Reset the cooldown timer
-        } else {
-            $error_message = $result['error'];
-        }
-    } else {
-        $error_message = "Session expired. Please try again.";
-        session_unset();
+function get_client_ip(): string {
+    return $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+}
+
+function ensure_login_attempts_table($pdo, $conn): bool {
+    $sql = "CREATE TABLE IF NOT EXISTS login_attempts (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        email VARCHAR(191) NOT NULL,
+        ip VARCHAR(45) NOT NULL,
+        success TINYINT(1) NOT NULL DEFAULT 0,
+        attempted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_login_attempts_email_ip (email, ip),
+        KEY idx_login_attempts_time (attempted_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
+    if (isset($pdo) && $pdo instanceof PDO) {
+        return $pdo->exec($sql) !== false;
     }
+
+    return $conn->query($sql) === true;
+}
+
+function get_login_failure_stats($pdo, $conn, string $email, string $ip, string $cutoff): array {
+    if (isset($pdo) && $pdo instanceof PDO) {
+        $stmt = $pdo->prepare("SELECT COUNT(*) AS failures, MIN(attempted_at) AS first_failure FROM login_attempts WHERE email = ? AND ip = ? AND success = 0 AND attempted_at >= ?");
+        $stmt->execute([$email, $ip, $cutoff]);
+        $row = $stmt->fetch();
+    } else {
+        $stmt = $conn->prepare("SELECT COUNT(*) AS failures, MIN(attempted_at) AS first_failure FROM login_attempts WHERE email = ? AND ip = ? AND success = 0 AND attempted_at >= ?");
+        $stmt->bind_param("sss", $email, $ip, $cutoff);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+    }
+
+    return [
+        'failures' => (int) ($row['failures'] ?? 0),
+        'first_failure' => $row['first_failure'] ?? null,
+    ];
+}
+
+function record_login_attempt($pdo, $conn, string $email, string $ip, bool $success): bool {
+    if (isset($pdo) && $pdo instanceof PDO) {
+        $stmt = $pdo->prepare("INSERT INTO login_attempts (email, ip, success) VALUES (?, ?, ?)");
+        return $stmt->execute([$email, $ip, $success ? 1 : 0]);
+    }
+
+    $stmt = $conn->prepare("INSERT INTO login_attempts (email, ip, success) VALUES (?, ?, ?)");
+    $successFlag = $success ? 1 : 0;
+    $stmt->bind_param("ssi", $email, $ip, $successFlag);
+    return $stmt->execute();
+}
+
+function cleanup_login_attempts($pdo, $conn, string $cutoff): void {
+    if (isset($pdo) && $pdo instanceof PDO) {
+        $stmt = $pdo->prepare("DELETE FROM login_attempts WHERE attempted_at < ?");
+        $stmt->execute([$cutoff]);
+        return;
+    }
+
+    $stmt = $conn->prepare("DELETE FROM login_attempts WHERE attempted_at < ?");
+    $stmt->bind_param("s", $cutoff);
+    $stmt->execute();
+}
+
+function verify_password_and_upgrade(string $password, string $stored, callable $onUpgrade): bool {
+    $info = password_get_info($stored);
+    $isHash = ($info['algo'] ?? 0) !== 0;
+
+    if ($isHash) {
+        $valid = password_verify($password, $stored);
+        if ($valid && password_needs_rehash($stored, PASSWORD_DEFAULT)) {
+            $onUpgrade(password_hash($password, PASSWORD_DEFAULT));
+        }
+        return $valid;
+    }
+
+    if (hash_equals($stored, $password)) {
+        $onUpgrade(password_hash($password, PASSWORD_DEFAULT));
+        return true;
+    }
+
+    return false;
 }
 
 // Display global success messages (like after a password reset)
@@ -43,6 +120,27 @@ if (isset($_SESSION['global_success'])) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? null)) {
+        $error_message = "Security check failed. Please refresh and try again.";
+    } else {
+        // Handle "Resend OTP"
+        if (isset($_POST['resend_otp'])) {
+            $email = $_SESSION['pending_email'] ?? '';
+            $context = $_SESSION['otp_context'] ?? 'registration';
+
+            if ($email) {
+                $result = $otpService->generateAndSendOtp($email, $context);
+                if ($result['success']) {
+                    $success_message = "A new verification code has been sent to your email.";
+                    $_SESSION['last_otp_send_time'] = time(); // Reset the cooldown timer
+                } else {
+                    $error_message = $result['error'];
+                }
+            } else {
+                $error_message = "Session expired. Please try again.";
+                session_unset();
+            }
+        }
 
     // ==========================================
     // LOGIN: DIRECT LOGIN (EXISTING USERS)
@@ -50,23 +148,54 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['login_step_1'])) {
         $email = trim($_POST['email']);
         $password = $_POST['password'];
+        $ip = get_client_ip();
+        $windowCutoff = date('Y-m-d H:i:s', time() - LOGIN_RATE_LIMIT_WINDOW);
+
+        if (!ensure_login_attempts_table($pdo ?? null, $conn)) {
+            error_log('Failed to ensure login_attempts table for rate limiting.');
+            $error_message = "Login temporarily unavailable. Please try again later.";
+        } else {
+            $failures = get_login_failure_stats($pdo ?? null, $conn, $email, $ip, $windowCutoff);
+            if ($failures['failures'] >= LOGIN_RATE_LIMIT_MAX) {
+                $firstFailure = $failures['first_failure'] ? strtotime($failures['first_failure']) : time();
+                $retryIn = max(1, LOGIN_RATE_LIMIT_WINDOW - (time() - $firstFailure));
+                $retryMinutes = (int) ceil($retryIn / 60);
+                $error_message = "Too many login attempts. Try again in {$retryMinutes} minute(s).";
+            } else {
 
         // Use PDO for secure prepared statements when available
         if (isset($pdo) && $pdo instanceof PDO) {
-            $stmt = $pdo->prepare("SELECT id, role, status FROM users WHERE email = ? AND password = ?");
-            $stmt->execute([$email, $password]);
+            $stmt = $pdo->prepare("SELECT id, role, status, password FROM users WHERE email = ?");
+            $stmt->execute([$email]);
             $user = $stmt->fetch();
 
             if ($user) {
-                if (strtolower($user['status'] ?? 'active') === 'suspended') {
+                $validPassword = verify_password_and_upgrade($password, (string) $user['password'], function ($newHash) use ($pdo, $user) {
+                    try {
+                        $upd = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+                        $upd->execute([$newHash, $user['id']]);
+                    } catch (Exception $e) {
+                        error_log('Password rehash failed: ' . $e->getMessage());
+                    }
+                });
+
+                if (!$validPassword) {
+                    $error_message = "Invalid email or password.";
+                    record_login_attempt($pdo, $conn, $email, $ip, false);
+                } elseif (strtolower($user['status'] ?? 'active') === 'suspended') {
                     $error_message = "Account suspended. Contact System Admin.";
+                    record_login_attempt($pdo, $conn, $email, $ip, false);
                     // Log blocked login attempt
                     $log_stmt = $pdo->prepare("INSERT INTO audit_logs (user_email, action) VALUES (?, ?)");
                     $log_stmt->execute([$email, 'Blocked login attempt - account suspended']);
                 } else {
+                    regenerate_session_on_login();
                     $_SESSION['admin_logged_in'] = true;
                     $_SESSION['email'] = $email;
                     $_SESSION['role'] = $user['role'];
+
+                    record_login_attempt($pdo, $conn, $email, $ip, true);
+                    cleanup_login_attempts($pdo, $conn, date('Y-m-d H:i:s', time() - LOGIN_RATE_LIMIT_CLEANUP));
 
                     $log_stmt = $pdo->prepare("INSERT INTO audit_logs (user_email, action) VALUES (?, ?)");
                     $log_stmt->execute([$email, 'Successful login via web portal.']);
@@ -76,31 +205,46 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
             } else {
                 $error_message = "Invalid email or password.";
+                record_login_attempt($pdo, $conn, $email, $ip, false);
             }
         } else {
             // Fallback to existing mysqli behavior if PDO isn't available
-            $stmt = $conn->prepare("SELECT id, role FROM users WHERE email = ? AND password = ?");
-            $stmt->bind_param("ss", $email, $password);
+            $stmt = $conn->prepare("SELECT id, role, password FROM users WHERE email = ?");
+            $stmt->bind_param("s", $email);
             $stmt->execute();
-            $stmt->store_result();
+            $result = $stmt->get_result();
 
-            if ($stmt->num_rows > 0) {
-                $stmt->bind_result($id, $role);
-                $stmt->fetch();
+            if ($row = $result->fetch_assoc()) {
+                $validPassword = verify_password_and_upgrade($password, (string) $row['password'], function ($newHash) use ($conn, $row) {
+                    $upd = $conn->prepare("UPDATE users SET password = ? WHERE id = ?");
+                    $upd->bind_param("si", $newHash, $row['id']);
+                    if (!$upd->execute()) {
+                        error_log('Password rehash failed: ' . $conn->error);
+                    }
+                });
 
-                $_SESSION['admin_logged_in'] = true;
-                $_SESSION['email'] = $email;
-                $_SESSION['role'] = $role;
+                if ($validPassword) {
+                    regenerate_session_on_login();
+                    $_SESSION['admin_logged_in'] = true;
+                    $_SESSION['email'] = $email;
+                    $_SESSION['role'] = $row['role'];
 
-                $log_action = "Successful login via web portal.";
-                $log_stmt = $conn->prepare("INSERT INTO audit_logs (user_email, action) VALUES (?, ?)");
-                $log_stmt->bind_param("ss", $email, $log_action);
-                $log_stmt->execute();
+                    record_login_attempt($pdo, $conn, $email, $ip, true);
+                    cleanup_login_attempts($pdo, $conn, date('Y-m-d H:i:s', time() - LOGIN_RATE_LIMIT_CLEANUP));
 
-                header("Location: dashboard.php");
-                exit();
-            } else {
-                $error_message = "Invalid email or password.";
+                    $log_action = "Successful login via web portal.";
+                    $log_stmt = $conn->prepare("INSERT INTO audit_logs (user_email, action) VALUES (?, ?)");
+                    $log_stmt->bind_param("ss", $email, $log_action);
+                    $log_stmt->execute();
+
+                    header("Location: dashboard.php");
+                    exit();
+                }
+            }
+
+            $error_message = "Invalid email or password.";
+            record_login_attempt($pdo, $conn, $email, $ip, false);
+        }
             }
         }
     }
@@ -127,7 +271,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             if ($result['success']) {
                 $_SESSION['otp_context'] = 'register';
                 $_SESSION['pending_email'] = $email;
-                $_SESSION['pending_password'] = $password;
+                $_SESSION['pending_password_hash'] = password_hash($password, PASSWORD_DEFAULT);
                 $_SESSION['pending_role'] = $role;
                 $_SESSION['last_otp_send_time'] = time();
 
@@ -154,24 +298,29 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             if ($verifyResult['success']) {
                 $role = $_SESSION['pending_role'];
-                $password = $_SESSION['pending_password'];
+                $passwordHash = $_SESSION['pending_password_hash'] ?? '';
 
-                $insert = $conn->prepare("INSERT INTO users (email, password, role) VALUES (?, ?, ?)");
-                $insert->bind_param("sss", $email, $password, $role);
-                $insert->execute();
+                if (empty($passwordHash)) {
+                    $error_message = "Session expired. Please restart registration.";
+                } else {
+                    $insert = $conn->prepare("INSERT INTO users (email, password, role) VALUES (?, ?, ?)");
+                    $insert->bind_param("sss", $email, $passwordHash, $role);
+                    $insert->execute();
 
-                $log_action = "New account registered and verified via email OTP.";
-                $log_stmt = $conn->prepare("INSERT INTO audit_logs (user_email, action) VALUES (?, ?)");
-                $log_stmt->bind_param("ss", $email, $log_action);
-                $log_stmt->execute();
+                    $log_action = "New account registered and verified via email OTP.";
+                    $log_stmt = $conn->prepare("INSERT INTO audit_logs (user_email, action) VALUES (?, ?)");
+                    $log_stmt->bind_param("ss", $email, $log_action);
+                    $log_stmt->execute();
 
-                session_unset();
-                $_SESSION['admin_logged_in'] = true;
-                $_SESSION['email'] = $email;
-                $_SESSION['role'] = $role;
+                    session_unset();
+                    regenerate_session_on_login();
+                    $_SESSION['admin_logged_in'] = true;
+                    $_SESSION['email'] = $email;
+                    $_SESSION['role'] = $role;
 
-                header("Location: dashboard.php");
-                exit();
+                    header("Location: dashboard.php");
+                    exit();
+                }
             } else {
                 $error_message = $verifyResult['error'];
             }
@@ -243,8 +392,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $new_password = $_POST['new_password'];
         $email = $_SESSION['pending_email'];
 
+        $passwordHash = password_hash($new_password, PASSWORD_DEFAULT);
         $stmt = $conn->prepare("UPDATE users SET password = ? WHERE email = ?");
-        $stmt->bind_param("ss", $new_password, $email);
+        $stmt->bind_param("ss", $passwordHash, $email);
         $stmt->execute();
 
         $log_action = "Account password recovered and reset via email OTP.";
@@ -256,6 +406,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $_SESSION['global_success'] = "Password successfully reset. You can now sign in.";
         header("Location: index.php");
         exit();
+    }
     }
 }
 
@@ -286,9 +437,10 @@ $is_forgot_pw = isset($_GET['action']) && $_GET['action'] === 'forgot_password';
                 <p>Secure your account for <br><strong><?php echo htmlspecialchars($_SESSION['pending_email']); ?></strong></p>
             </div>
 
-            <?php if (!empty($success_message)): ?><div class="success-box"><?php echo $success_message; ?></div><?php endif; ?>
+            <?php if (!empty($success_message)): ?><div class="success-box"><?php echo h($success_message); ?></div><?php endif; ?>
 
             <form method="POST">
+                <?php echo csrf_field(); ?>
                 <div class="input-group">
                     <label>Create New Password</label>
                     <input type="password" name="new_password" placeholder=" " required minlength="6">
@@ -310,29 +462,31 @@ $is_forgot_pw = isset($_GET['action']) && $_GET['action'] === 'forgot_password';
             $cooldownRemaining = max(0, 60 - $timeSinceSend);
             ?>
             <div class="header">
-                <i class="fa-solid <?php echo $icon; ?>"></i>
-                <h2><?php echo $title; ?></h2>
+                <i class="fa-solid <?php echo h($icon); ?>"></i>
+                <h2><?php echo h($title); ?></h2>
                 <p>We've sent a 6-digit code to <br><strong><?php echo htmlspecialchars($_SESSION['pending_email']); ?></strong></p>
             </div>
 
-            <?php if (!empty($success_message)): ?><div class="success-box"><?php echo $success_message; ?></div><?php endif; ?>
-            <?php if (!empty($error_message)): ?><div class="error-box"><?php echo $error_message; ?></div><?php endif; ?>
+            <?php if (!empty($success_message)): ?><div class="success-box"><?php echo h($success_message); ?></div><?php endif; ?>
+            <?php if (!empty($error_message)): ?><div class="error-box"><?php echo h($error_message); ?></div><?php endif; ?>
 
             <form method="POST" id="otpForm">
+                <?php echo csrf_field(); ?>
                 <div class="input-group">
                     <label>Security Code</label>
                     <input type="text" name="otp_code" placeholder="123456" maxlength="6" required autocomplete="off" style="text-align: center; letter-spacing: 8px; font-size: 1.25rem; font-weight: 700;">
                 </div>
-                <button type="submit" name="<?php echo $submitName; ?>" class="btn-submit"><?php echo $submitText; ?></button>
+                <button type="submit" name="<?php echo h($submitName); ?>" class="btn-submit"><?php echo h($submitText); ?></button>
             </form>
 
             <form method="POST" id="resendForm" style="margin-top: 15px;">
+                <?php echo csrf_field(); ?>
                 <button type="submit" name="resend_otp" id="resendBtn" class="btn-submit" style="background-color: #f1f5f9; color: var(--slate-700); font-size: 0.85rem;" <?php echo $cooldownRemaining > 0 ? 'disabled' : ''; ?>>
                     <?php echo $cooldownRemaining > 0 ? "Resend Code in {$cooldownRemaining}s" : "Resend Code"; ?>
                 </button>
             </form>
 
-            <div class="footer"><a href="<?php echo $cancelUrl; ?>"><i class="fa-solid fa-arrow-left"></i> Cancel</a></div>
+            <div class="footer"><a href="<?php echo h($cancelUrl); ?>"><i class="fa-solid fa-arrow-left"></i> Cancel</a></div>
 
             <!-- Cooldown Timer Logic -->
             <script>
@@ -362,9 +516,10 @@ $is_forgot_pw = isset($_GET['action']) && $_GET['action'] === 'forgot_password';
                 <p>Enter your email to receive a password reset code.</p>
             </div>
 
-            <?php if (!empty($error_message)): ?><div class="error-box"><?php echo $error_message; ?></div><?php endif; ?>
+            <?php if (!empty($error_message)): ?><div class="error-box"><?php echo h($error_message); ?></div><?php endif; ?>
 
             <form method="POST" action="index.php?action=forgot_password">
+                <?php echo csrf_field(); ?>
                 <div class="input-group">
                     <label>Email Address</label>
                     <input type="email" name="email" placeholder="name@dlsud.edu.ph" required>
@@ -382,9 +537,10 @@ $is_forgot_pw = isset($_GET['action']) && $_GET['action'] === 'forgot_password';
                 <p>Register a new system user</p>
             </div>
 
-            <?php if (!empty($error_message)): ?><div class="error-box"><?php echo $error_message; ?></div><?php endif; ?>
+            <?php if (!empty($error_message)): ?><div class="error-box"><?php echo h($error_message); ?></div><?php endif; ?>
 
             <form method="POST" action="index.php?action=register">
+                <?php echo csrf_field(); ?>
                 <div class="input-group">
                     <label>Email Address</label>
                     <input type="email" name="email" placeholder="name@dlsud.edu.ph" required>
@@ -405,10 +561,11 @@ $is_forgot_pw = isset($_GET['action']) && $_GET['action'] === 'forgot_password';
                 <h2>EduPulse Portal</h2>
             </div>
 
-            <?php if (!empty($success_message)): ?><div class="success-box"><?php echo $success_message; ?></div><?php endif; ?>
-            <?php if (!empty($error_message)): ?><div class="error-box"><?php echo $error_message; ?></div><?php endif; ?>
+            <?php if (!empty($success_message)): ?><div class="success-box"><?php echo h($success_message); ?></div><?php endif; ?>
+            <?php if (!empty($error_message)): ?><div class="error-box"><?php echo h($error_message); ?></div><?php endif; ?>
 
             <form method="POST" action="index.php">
+                <?php echo csrf_field(); ?>
                 <div class="input-group">
                     <label>Email Address</label>
                     <input type="email" name="email" placeholder="name@dlsud.edu.ph" required>

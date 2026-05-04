@@ -1,6 +1,7 @@
 <?php
 // public/oauth.php
-session_start();
+require_once dirname(__DIR__) . '/app/includes/security.php';
+start_secure_session();
 
 // Load Composer dependencies and Database
 require_once dirname(__DIR__) . '/vendor/autoload.php';
@@ -87,29 +88,28 @@ try {
   $stmt->execute();
   $result = $stmt->get_result();
 
+  $sessionRole = $role;
   if ($result->num_rows > 0) {
     // User exists. Auto-link account if they were a local user, then log them in.
     $existingUser = $result->fetch_assoc();
+    $sessionRole = $existingUser['role'];
 
     if (empty($existingUser['provider_id'])) {
       $update = $conn->prepare("UPDATE users SET auth_provider = ?, provider_id = ? WHERE id = ?");
       $update->bind_param("ssi", $providerName, $providerId, $existingUser['id']);
       $update->execute();
     }
-
-    $_SESSION['admin_logged_in'] = true;
-    $_SESSION['email'] = $email;
-    $_SESSION['role'] = $existingUser['role'];
   } else {
     // User does not exist. Register them instantly as Faculty.
     $insert = $conn->prepare("INSERT INTO users (email, role, auth_provider, provider_id) VALUES (?, ?, ?, ?)");
     $insert->bind_param("ssss", $email, $role, $providerName, $providerId);
     $insert->execute();
-
-    $_SESSION['admin_logged_in'] = true;
-    $_SESSION['email'] = $email;
-    $_SESSION['role'] = $role;
   }
+
+  regenerate_session_on_login();
+  $_SESSION['admin_logged_in'] = true;
+  $_SESSION['email'] = $email;
+  $_SESSION['role'] = $sessionRole;
 
   // Log the action
   $log_action = "Successful SSO login via " . ucfirst($providerName);

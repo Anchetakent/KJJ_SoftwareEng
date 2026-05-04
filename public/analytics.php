@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once dirname(__DIR__) . '/app/includes/security.php';
+start_secure_session();
 
 if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
     header('Location: index.php');

@@ -30,7 +30,19 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   KEY idx_audit_log_time (log_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 3) Sections/classes owned by a faculty account
+-- 3) Login attempts (rate limiting / brute-force protection)
+CREATE TABLE IF NOT EXISTS login_attempts (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  email VARCHAR(191) NOT NULL,
+  ip VARCHAR(45) NOT NULL,
+  success TINYINT(1) NOT NULL DEFAULT 0,
+  attempted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_login_attempts_email_ip (email, ip),
+  KEY idx_login_attempts_time (attempted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 4) Sections/classes owned by a faculty account
 CREATE TABLE IF NOT EXISTS sections (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   section_name VARCHAR(191) NOT NULL,
@@ -46,7 +58,7 @@ CREATE TABLE IF NOT EXISTS sections (
     ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 4) Students enrolled in a section
+-- 5) Students enrolled in a section
 CREATE TABLE IF NOT EXISTS students (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   student_id VARCHAR(50) NOT NULL,
@@ -62,7 +74,7 @@ CREATE TABLE IF NOT EXISTS students (
     ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 5) Grade categories/buckets per term (Midterm/Finals)
+-- 6) Grade categories/buckets per term (Midterm/Finals)
 CREATE TABLE IF NOT EXISTS grading_categories (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   section_id INT UNSIGNED NOT NULL,
@@ -83,7 +95,7 @@ CREATE TABLE IF NOT EXISTS grading_categories (
     CHECK (weight >= 0 AND weight <= 100)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 6) Assignments inside a grading category
+-- 7) Assignments inside a grading category
 CREATE TABLE IF NOT EXISTS assignments (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   category_id INT UNSIGNED NOT NULL,
@@ -100,7 +112,7 @@ CREATE TABLE IF NOT EXISTS assignments (
     CHECK (max_score > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 7) Scores per (student internal id, assignment)
+-- 8) Scores per (student internal id, assignment)
 -- IMPORTANT: student_id here references students.id (INT), not students.student_id (string)
 CREATE TABLE IF NOT EXISTS student_scores (
   student_id INT UNSIGNED NOT NULL,
@@ -128,7 +140,8 @@ CREATE TABLE IF NOT EXISTS student_scores (
 UPDATE users SET role = 'Faculty' WHERE role IN ('adminoffice', 'Teacher');
 
 -- Starter data (safe inserts)
--- Plain-text password is kept to match your current PHP login logic.
+-- Plain-text password is kept for local/dev convenience.
+-- It will be re-hashed automatically on the user's next successful login.
 INSERT INTO users (email, password, role)
 SELECT 'sysadmin@edupulse.local', 'admin123', 'System Admin'
 WHERE NOT EXISTS (

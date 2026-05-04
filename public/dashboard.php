@@ -1,7 +1,14 @@
 <?php
-session_start();
+require_once __DIR__ . '/../app/includes/security.php';
+start_secure_session();
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../app/includes/analytics_functions.php';
+
+if (!enforce_session_timeout()) {
+    $_SESSION['flash_error'] = "Session expired. Please sign in again.";
+    header("Location: index.php");
+    exit();
+}
 
 if (!isset($_SESSION['admin_logged_in'])) {
     header("Location: index.php");
@@ -13,8 +20,27 @@ $user_email = $_SESSION['email'];
 $selected_section = isset($_GET['section']) ? $_GET['section'] : null;
 $view = isset($_GET['view']) ? $_GET['view'] : null;
 $current_tab = isset($_GET['tab']) ? $_GET['tab'] : 'overview';
+$csrf_token = get_csrf_token();
 
 $duplicate_error = "";
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? null)) {
+        $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+            || isset($_POST['autosave_score']);
+
+        if ($isAjax) {
+            http_response_code(400);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'error' => 'Invalid CSRF token.']);
+            exit();
+        }
+
+        $_SESSION['flash_error'] = "Security check failed. Please try again.";
+        header("Location: dashboard.php");
+        exit();
+    }
+}
 
 $current_section_id = null;
 $current_section_notes = '';
@@ -71,13 +97,14 @@ if ($user_role === 'System Admin') {
                 $max = strlen($chars) - 1;
                 for ($i = 0; $i < 8; $i++) { $temp .= $chars[random_int(0, $max)]; }
 
+                $tempHash = password_hash($temp, PASSWORD_DEFAULT);
                 $upd = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
-                $upd->execute([$temp, $uid]);
+                $upd->execute([$tempHash, $uid]);
 
                 $log = $pdo->prepare("INSERT INTO audit_logs (user_email, action) VALUES (?, ?)");
                 $log->execute([$u['email'], "Password reset by {$user_email}"]);
 
-                $_SESSION['flash_success'] = "Temporary password for {$u['email']}: <strong>" . htmlspecialchars($temp) . "</strong>";
+                $_SESSION['flash_success'] = "Temporary password for {$u['email']}: {$temp}";
             }
         } catch (Exception $e) {
             error_log('Reset password failed: ' . $e->getMessage());
@@ -105,7 +132,7 @@ if ($user_role === 'System Admin') {
                     $log = $pdo->prepare("INSERT INTO audit_logs (user_email, action) VALUES (?, ?)");
                     $log->execute([$u['email'], "Account permanently deleted by {$user_email}"]);
 
-                    $_SESSION['flash_success'] = "User " . htmlspecialchars($u['email']) . " deleted.";
+                    $_SESSION['flash_success'] = "User {$u['email']} deleted.";
                 }
             }
         } catch (Exception $e) {
@@ -293,7 +320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($user_role === 'Faculty')) {
         $check->bind_param("si", $sid, $current_section_id);
         $check->execute();
         if ($check->get_result()->num_rows > 0) {
-            $duplicate_error = "The Student ID <strong>" . htmlspecialchars($sid) . "</strong> is already enrolled.";
+            $duplicate_error = "The Student ID {$sid} is already enrolled.";
         } else {
             $stmt = $conn->prepare("INSERT INTO students (student_id, name, section_id) VALUES (?, ?, ?)");
             $stmt->bind_param("ssi", $sid, $sname, $current_section_id);
@@ -310,7 +337,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($user_role === 'Faculty')) {
             $check->bind_param("si", $new_id, $current_section_id);
             $check->execute();
             if ($check->get_result()->num_rows > 0) {
-                $duplicate_error = "Cannot update. The ID <strong>" . htmlspecialchars($new_id) . "</strong> is already assigned.";
+                $duplicate_error = "Cannot update. The ID {$new_id} is already assigned.";
             }
         }
         if (empty($duplicate_error)) {
