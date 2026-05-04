@@ -422,6 +422,7 @@ $is_forgot_pw = isset($_GET['action']) && $_GET['action'] === 'forgot_password';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portal | EduPulse</title>
+    <link rel="icon" href="../images/favicon.png" type="image/png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/index.css">
@@ -443,7 +444,7 @@ $is_forgot_pw = isset($_GET['action']) && $_GET['action'] === 'forgot_password';
                 <?php echo csrf_field(); ?>
                 <div class="input-group">
                     <label>Create New Password</label>
-                    <input type="password" name="new_password" placeholder=" " required minlength="6">
+                    <input type="password" name="new_password" required minlength="6">
                 </div>
                 <button type="submit" name="reset_password" class="btn-submit">Save Password</button>
             </form>
@@ -474,7 +475,7 @@ $is_forgot_pw = isset($_GET['action']) && $_GET['action'] === 'forgot_password';
                 <?php echo csrf_field(); ?>
                 <div class="input-group">
                     <label>Security Code</label>
-                    <input type="text" name="otp_code" placeholder="123456" maxlength="6" required autocomplete="off" style="text-align: center; letter-spacing: 8px; font-size: 1.25rem; font-weight: 700;">
+                    <input type="text" name="otp_code" maxlength="6" required autocomplete="off" style="text-align: center; letter-spacing: 8px; font-size: 1.25rem; font-weight: 700;">
                 </div>
                 <button type="submit" name="<?php echo h($submitName); ?>" class="btn-submit"><?php echo h($submitText); ?></button>
             </form>
@@ -522,7 +523,7 @@ $is_forgot_pw = isset($_GET['action']) && $_GET['action'] === 'forgot_password';
                 <?php echo csrf_field(); ?>
                 <div class="input-group">
                     <label>Email Address</label>
-                    <input type="email" name="email" placeholder="name@dlsud.edu.ph" required>
+                    <input type="email" name="email" required>
                 </div>
                 <button type="submit" name="forgot_step_1" class="btn-submit">Send Recovery Code</button>
             </form>
@@ -543,11 +544,11 @@ $is_forgot_pw = isset($_GET['action']) && $_GET['action'] === 'forgot_password';
                 <?php echo csrf_field(); ?>
                 <div class="input-group">
                     <label>Email Address</label>
-                    <input type="email" name="email" placeholder="name@dlsud.edu.ph" required>
+                    <input type="email" name="email" required>
                 </div>
                 <div class="input-group">
                     <label>Create Password</label>
-                    <input type="password" name="password" placeholder=" " required minlength="6">
+                    <input type="password" name="password" required minlength="6">
                 </div>
                 <button type="submit" name="register_step_1" class="btn-submit">Send Verification Code</button>
             </form>
@@ -568,14 +569,14 @@ $is_forgot_pw = isset($_GET['action']) && $_GET['action'] === 'forgot_password';
                 <?php echo csrf_field(); ?>
                 <div class="input-group">
                     <label>Email Address</label>
-                    <input type="email" name="email" placeholder="name@dlsud.edu.ph" required>
+                    <input type="email" name="email" required>
                 </div>
                 <div class="input-group">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
                         <label style="margin-bottom: 0;">Password</label>
                         <a href="index.php?action=forgot_password" style="font-size: 0.75rem; text-decoration: none; color: var(--primary); font-weight: 600;">Forgot password?</a>
                     </div>
-                    <input type="password" name="password" placeholder=" " required>
+                    <input type="password" name="password" required>
                 </div>
                 <button type="submit" name="login_step_1" class="btn-submit">Sign In</button>
             </form>
