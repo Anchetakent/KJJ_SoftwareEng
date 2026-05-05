@@ -59,18 +59,18 @@ $csrf_token = $csrf_token ?? '';
                         <div class="card-header">
                             <h3 style="font-size: 1rem;">System Accounts</h3>
                         </div>
-                        <table>
+                        <table class="table-cards">
                             <thead><tr><th>ID</th><th>Email Address</th><th>Role</th><th>Status</th><th style="text-align: right;">Manage</th></tr></thead>
                             <tbody>
                                 <?php if (!empty($users)): ?>
                                     <?php foreach ($users as $u): ?>
                                         <tr>
-                                            <td style="color: var(--text-muted);">#<?php echo h($u['id']); ?></td>
-                                            <td><strong><?php echo h($u['email']); ?></strong></td>
-                                            <td><?php echo h($u['role']); ?></td>
+                                            <td data-label="ID" style="color: var(--text-muted);">#<?php echo h($u['id']); ?></td>
+                                            <td data-label="Email Address"><strong><?php echo h($u['email']); ?></strong></td>
+                                            <td data-label="Role"><?php echo h($u['role']); ?></td>
                                             <?php $isSusp = strtolower($u['status']) === 'suspended'; ?>
-                                            <td><span class="status-pill<?php echo $isSusp ? ' suspended' : ''; ?>"><?php echo h($u['status']); ?></span></td>
-                                            <td style="text-align: right;">
+                                            <td data-label="Status"><span class="status-pill<?php echo $isSusp ? ' suspended' : ''; ?>"><?php echo h($u['status']); ?></span></td>
+                                            <td data-label="Manage" style="text-align: right;">
                                                 <form method="POST" style="display:inline;">
                                                     <?php echo csrf_field(); ?>
                                                     <input type="hidden" name="user_id" value="<?php echo h($u['id']); ?>">
@@ -88,7 +88,7 @@ $csrf_token = $csrf_token ?? '';
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php else: ?>
-                                    <tr><td colspan="5" style="color: var(--text-muted);">No accounts found.</td></tr>
+                                    <tr><td colspan="5" class="table-empty" style="color: var(--text-muted);">No accounts found.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -141,7 +141,7 @@ $csrf_token = $csrf_token ?? '';
                     <div class="data-card">
                         <div class="card-header"><h3 style="font-size: 1rem;">Recent Activity</h3></div>
                         <div style="margin-bottom: 10px; padding: 12px 20px 0 20px; display:flex; gap:12px; align-items:center;">
-                            <form method="GET" style="display:flex; gap:8px; align-items:center;">
+                            <form method="GET" class="filter-form" style="display:flex; gap:8px; align-items:center;">
                                 <input type="hidden" name="view" value="logs">
                                 <input type="text" name="q" placeholder="Search by email or action" value="<?php echo isset($_GET['q']) ? htmlspecialchars($_GET['q']) : ''; ?>" style="padding:8px; border:1px solid var(--border-color); border-radius:6px;">
                                 <input type="date" name="date" value="<?php echo isset($_GET['date']) ? htmlspecialchars($_GET['date']) : ''; ?>" style="padding:8px; border:1px solid var(--border-color); border-radius:6px;">
@@ -149,19 +149,19 @@ $csrf_token = $csrf_token ?? '';
                                 <a href="dashboard.php?view=logs" class="btn-pill" style="background:#f8fafc; color:var(--slate-700); text-decoration:none;">Clear</a>
                             </form>
                         </div>
-                        <table>
+                        <table class="table-cards">
                             <thead><tr><th>Timestamp</th><th>User Account</th><th>Logged Action</th></tr></thead>
                             <tbody>
                                 <?php if (!empty($logs)): ?>
                                     <?php foreach ($logs as $l): ?>
                                         <tr>
-                                            <td style="color: var(--text-muted); font-size: 0.8rem;"><?php echo date("M d, Y • H:i:s", strtotime($l['log_time'])); ?></td>
-                                            <td><strong><?php echo htmlspecialchars($l['user_email']); ?></strong></td>
-                                            <td><?php echo htmlspecialchars($l['action']); ?></td>
+                                            <td data-label="Timestamp" style="color: var(--text-muted); font-size: 0.8rem;"><?php echo date("M d, Y • H:i:s", strtotime($l['log_time'])); ?></td>
+                                            <td data-label="User Account"><strong><?php echo htmlspecialchars($l['user_email']); ?></strong></td>
+                                            <td data-label="Logged Action"><?php echo htmlspecialchars($l['action']); ?></td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php else: ?>
-                                    <tr><td colspan="3" style="color: var(--text-muted);">No log entries found.</td></tr>
+                                    <tr><td colspan="3" class="table-empty" style="color: var(--text-muted);">No log entries found.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -184,7 +184,7 @@ $csrf_token = $csrf_token ?? '';
                     <div class="data-card">
                         <div class="card-header">
                             <h3 style="font-size: 1.2rem; font-weight: 800; color: var(--slate-700);"><?php echo htmlspecialchars($selected_section); ?></h3>
-                            <div style="display: flex; gap: 10px;">
+                            <div class="header-actions" style="display: flex; gap: 10px;">
                                 <form method="POST" style="margin: 0;">
                                     <?php echo csrf_field(); ?>
                                     <button type="submit" name="export_csv" class="btn-pill" style="color: #0284c7; border-color: #bae6fd; background: #f0f9ff;"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
@@ -202,7 +202,7 @@ $csrf_token = $csrf_token ?? '';
                         </div>
 
                         <div id="add-student-pane" class="mgmt-pane">
-                            <form method="POST" style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 15px; align-items: end;">
+                            <form method="POST" class="responsive-grid-form" style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 15px; align-items: end;">
                                 <?php echo csrf_field(); ?>
                                 <div><label class="pane-label">ID Number</label><input type="text" name="student_id" class="grade-input" style="width: 100%; text-align:left;" required></div>
                                 <div><label class="pane-label">Full Name</label><input type="text" name="student_name" class="grade-input" style="width: 100%; text-align:left;" required></div>
@@ -211,12 +211,12 @@ $csrf_token = $csrf_token ?? '';
                         </div>
 
                         <div id="edit-student-pane" class="mgmt-pane" style="background: #fffaf0; border-bottom: 1px solid #fbd38d;">
-                            <form method="POST" style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 15px; align-items: end;">
+                            <form method="POST" class="responsive-grid-form" style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 15px; align-items: end;">
                                 <?php echo csrf_field(); ?>
                                 <input type="hidden" name="old_student_id" id="edit-old-id">
                                 <div><label class="pane-label">Update Student ID</label><input type="text" name="new_student_id" id="edit-new-id" class="grade-input" style="width: 100%; text-align:left;" required></div>
                                 <div><label class="pane-label">Update Full Name</label><input type="text" name="new_student_name" id="edit-new-name" class="grade-input" style="width: 100%; text-align:left;" required></div>
-                                <div style="display: flex; gap: 10px;"><button type="submit" name="edit_student" class="btn-save" style="background: #ed8936;">Update Student</button><button type="button" onclick="togglePane('edit-student-pane')" class="btn-pill">Cancel</button></div>
+                                <div class="form-actions" style="display: flex; gap: 10px;"><button type="submit" name="edit_student" class="btn-save" style="background: #ed8936;">Update Student</button><button type="button" onclick="togglePane('edit-student-pane')" class="btn-pill">Cancel</button></div>
                             </form>
                         </div>
 
@@ -226,7 +226,7 @@ $csrf_token = $csrf_token ?? '';
                                 <input type="hidden" name="old_section_name" value="<?php echo htmlspecialchars($selected_section); ?>">
                                 <div style="margin-bottom: 16px;"><label class="pane-label">Class Name</label><input type="text" name="new_section_name" class="grade-input" style="width: 100%; text-align:left;" value="<?php echo htmlspecialchars($selected_section); ?>" required></div>
                                 <div style="margin-bottom: 20px;"><label class="pane-label">Class Notes / Reminders</label><textarea name="notes" class="grade-input" style="width: 100%; height: 80px; text-align:left;"><?php echo htmlspecialchars($current_section_notes); ?></textarea></div>
-                                <div style="display: flex; gap: 10px;">
+                                <div class="form-actions" style="display: flex; gap: 10px;">
                                     <button type="submit" name="edit_class" class="btn-save">Update Details</button>
                                     <button type="button" id="openDeleteClassModalBtn" class="btn-save" style="background: var(--danger);">Delete Class</button>
                                 </div>
@@ -240,7 +240,7 @@ $csrf_token = $csrf_token ?? '';
 
                         <?php if ($current_tab === 'overview'): ?>
                             <div class="table-responsive">
-                                <table>
+                                <table class="table-cards">
                                     <thead><tr><th>Student ID</th><th>Full Name</th><th>Calc. Midterm</th><th>Calculated Finals</th><th>Overall Grade</th><th style="text-align: right;">Manage</th></tr></thead>
                                     <tbody>
                                         <?php 
@@ -282,18 +282,18 @@ $csrf_token = $csrf_token ?? '';
                                                 : null;
                                         ?>
                                             <tr>
-                                                <td style="color: var(--text-muted); font-family: monospace;"><?php echo htmlspecialchars($student['student_id']); ?></td>
-                                                <td><strong><?php echo htmlspecialchars($student['name']); ?></strong></td>
-                                                <td><span style="font-weight: 700; color: <?php echo $mid_total >= 75 ? 'var(--primary)' : 'var(--text-muted)'; ?>"><?php echo number_format($mid_total, 2); ?>%</span></td>
-                                                <td><span style="font-weight: 700; color: <?php echo $fin_total >= 75 ? 'var(--primary)' : 'var(--text-muted)'; ?>"><?php echo number_format($fin_total, 2); ?>%</span></td>
-                                                <td>
+                                                <td data-label="Student ID" style="color: var(--text-muted); font-family: monospace;"><?php echo htmlspecialchars($student['student_id']); ?></td>
+                                                <td data-label="Full Name"><strong><?php echo htmlspecialchars($student['name']); ?></strong></td>
+                                                <td data-label="Calc. Midterm"><span style="font-weight: 700; color: <?php echo $mid_total >= 75 ? 'var(--primary)' : 'var(--text-muted)'; ?>"><?php echo number_format($mid_total, 2); ?>%</span></td>
+                                                <td data-label="Calculated Finals"><span style="font-weight: 700; color: <?php echo $fin_total >= 75 ? 'var(--primary)' : 'var(--text-muted)'; ?>"><?php echo number_format($fin_total, 2); ?>%</span></td>
+                                                <td data-label="Overall Grade">
                                                     <?php if ($overall_total === null): ?>
                                                         <span style="font-weight: 700; color: var(--text-muted);">N/A</span>
                                                     <?php else: ?>
                                                         <span style="font-weight: 700; color: <?php echo $overall_total >= 75 ? 'var(--primary)' : 'var(--text-muted)'; ?>"><?php echo number_format($overall_total, 2); ?>%</span>
                                                     <?php endif; ?>
                                                 </td>
-                                                <td style="text-align: right;">
+                                                <td data-label="Manage" style="text-align: right;">
                                                     <a class="action-link" onclick="openEditStudent(<?php echo h(json_encode($student['student_id'])); ?>, <?php echo h(json_encode($student['name'])); ?>)"><i class="fa-solid fa-user-pen"></i></a>
                                                     <form method="POST" style="display:inline;" onsubmit="return confirm('Remove student?');">
                                                         <?php echo csrf_field(); ?>
@@ -310,30 +310,30 @@ $csrf_token = $csrf_token ?? '';
                         <?php elseif ($current_tab === 'Midterm' || $current_tab === 'Finals'): ?>
                             
                             <div style="padding: 24px; background: #f8fafc; border-bottom: 1px solid var(--border-color);">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                                <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                                     <h4 style="font-size: 0.95rem; color: var(--slate-700); margin: 0; font-weight: 800;">Grading Structure</h4>
                                     <button onclick="togglePane('add-category-pane')" class="btn-pill" style="color: var(--primary);"><i class="fa-solid fa-folder-plus"></i> Add Category</button>
                                 </div>
                                 
                                 <div id="add-category-pane" class="mgmt-pane" style="margin-bottom: 16px; border: 1px solid var(--border-color); border-radius: 8px;">
-                                    <form method="POST" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 15px; align-items: end;">
+                                    <form method="POST" class="responsive-grid-form" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 15px; align-items: end;">
                                         <?php echo csrf_field(); ?>
                                         <input type="hidden" name="term" value="<?php echo h($current_tab); ?>">
                                         <div><label class="pane-label">Category Bucket (e.g. Quizzes)</label><input type="text" name="cat_name" class="grade-input" style="width: 100%; text-align: left;" required></div>
                                         <div><label class="pane-label">Overall Weight (%)</label><input type="number" step="0.01" name="weight" class="grade-input" style="width: 100%; text-align: left;" required></div>
-                                        <div style="display: flex; gap: 10px;"><button type="submit" name="add_category" class="btn-save">Save Category</button><button type="button" onclick="togglePane('add-category-pane')" class="btn-pill">Cancel</button></div>
+                                        <div class="form-actions" style="display: flex; gap: 10px;"><button type="submit" name="add_category" class="btn-save">Save Category</button><button type="button" onclick="togglePane('add-category-pane')" class="btn-pill">Cancel</button></div>
                                     </form>
                                 </div>
 
                                 <div id="ass-form-pane" class="mgmt-pane" style="margin-bottom: 16px; border: 1px solid #38bdf8; border-radius: 8px; background: #f0f9ff;">
                                     <h5 style="margin-bottom: 12px; color: #0284c7;" id="ass-form-title">Add Assignment</h5>
-                                    <form method="POST" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 15px; align-items: end;">
+                                    <form method="POST" class="responsive-grid-form" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 15px; align-items: end;">
                                         <?php echo csrf_field(); ?>
                                         <input type="hidden" name="category_id" id="ass-cat-id">
                                         <input type="hidden" name="assignment_id" id="ass-id">
                                         <div><label class="pane-label">Assignment Name (e.g. Quiz 1)</label><input type="text" name="ass_name" id="ass-name" class="grade-input" style="width: 100%; text-align: left;" required></div>
                                         <div><label class="pane-label">Perfect / Max Score</label><input type="number" step="0.01" name="max_score" id="ass-max" class="grade-input" style="width: 100%; text-align: left;" required></div>
-                                        <div style="display: flex; gap: 10px;">
+                                        <div class="form-actions" style="display: flex; gap: 10px;">
                                             <button type="submit" name="add_assignment" id="ass-submit-add" class="btn-save" style="background: #0284c7;">Create</button>
                                             <button type="submit" name="edit_assignment" id="ass-submit-edit" class="btn-save" style="background: #0284c7; display: none;">Update</button>
                                             <button type="button" onclick="togglePane('ass-form-pane')" class="btn-pill">Cancel</button>
@@ -341,7 +341,7 @@ $csrf_token = $csrf_token ?? '';
                                     </form>
                                 </div>
 
-                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">
+                                <div class="category-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">
                                     <?php 
                                     $total_weight = 0;
                                     foreach($tree[$current_tab] as $cat_id => $cat): 
@@ -400,7 +400,7 @@ $csrf_token = $csrf_token ?? '';
                                     <div class="gradebook-search-count" id="gradebookSearchCount">Showing all students</div>
                                 </div>
                                 <div class="table-responsive">
-                                    <table>
+                                    <table class="gradebook-table">
                                         <thead>
                                             <tr>
                                                 <th rowspan="2" style="width: 250px; border-bottom: none; vertical-align: bottom;">Student Name</th>
@@ -566,13 +566,13 @@ $csrf_token = $csrf_token ?? '';
                             <div class="analytics-grid" style="padding-top: 0;">
                                 <div class="analytics-card">
                                     <h4>Status Summary</h4>
-                                    <table class="analytics-table">
+                                    <table class="analytics-table table-cards">
                                         <tbody>
-                                            <tr><td>No Data</td><td style="text-align:right; font-weight:700;"><?php echo count($analytics_no_data); ?></td></tr>
-                                            <tr><td>Partial</td><td style="text-align:right; font-weight:700;"><?php echo count($analytics_partial); ?></td></tr>
-                                            <tr><td>At Risk</td><td style="text-align:right; font-weight:700; color:#dc2626;"><?php echo count($analytics_at_risk); ?></td></tr>
-                                            <tr><td>Failed</td><td style="text-align:right; font-weight:700; color:#991b1b;"><?php echo count($analytics_failed); ?></td></tr>
-                                            <tr><td>Passed</td><td style="text-align:right; font-weight:700; color:#166534;"><?php echo count($analytics_passed); ?></td></tr>
+                                            <tr><td data-label="Status">No Data</td><td data-label="Count" style="text-align:right; font-weight:700;"><?php echo count($analytics_no_data); ?></td></tr>
+                                            <tr><td data-label="Status">Partial</td><td data-label="Count" style="text-align:right; font-weight:700;"><?php echo count($analytics_partial); ?></td></tr>
+                                            <tr><td data-label="Status">At Risk</td><td data-label="Count" style="text-align:right; font-weight:700; color:#dc2626;"><?php echo count($analytics_at_risk); ?></td></tr>
+                                            <tr><td data-label="Status">Failed</td><td data-label="Count" style="text-align:right; font-weight:700; color:#991b1b;"><?php echo count($analytics_failed); ?></td></tr>
+                                            <tr><td data-label="Status">Passed</td><td data-label="Count" style="text-align:right; font-weight:700; color:#166534;"><?php echo count($analytics_passed); ?></td></tr>
                                         </tbody>
                                     </table>
                                 </div>
@@ -603,7 +603,7 @@ $csrf_token = $csrf_token ?? '';
                                 </div>
                                 <?php if (!empty($analytics_at_risk)): ?>
                                     <div class="table-responsive">
-                                        <table class="analytics-table">
+                                        <table class="analytics-table table-cards">
                                             <thead>
                                                 <tr>
                                                     <th>Student ID</th>
@@ -615,10 +615,10 @@ $csrf_token = $csrf_token ?? '';
                                             <tbody>
                                                 <?php foreach ($analytics_at_risk as $student_row): ?>
                                                     <tr>
-                                                        <td><?php echo htmlspecialchars($student_row['student_id']); ?></td>
-                                                        <td><strong><?php echo htmlspecialchars($student_row['name']); ?></strong></td>
-                                                        <td><?php echo number_format((float) $student_row['score'], 2); ?>%</td>
-                                                        <td><span class="status-chip danger"><?php echo htmlspecialchars($student_row['status']); ?></span></td>
+                                                        <td data-label="Student ID"><?php echo htmlspecialchars($student_row['student_id']); ?></td>
+                                                        <td data-label="Name"><strong><?php echo htmlspecialchars($student_row['name']); ?></strong></td>
+                                                        <td data-label="Overall Grade"><?php echo number_format((float) $student_row['score'], 2); ?>%</td>
+                                                        <td data-label="Status"><span class="status-chip danger"><?php echo htmlspecialchars($student_row['status']); ?></span></td>
                                                     </tr>
                                                 <?php endforeach; ?>
                                             </tbody>
@@ -636,7 +636,7 @@ $csrf_token = $csrf_token ?? '';
                                 </div>
                                 <?php if (!empty($analytics_failed)): ?>
                                     <div class="table-responsive">
-                                        <table class="analytics-table">
+                                        <table class="analytics-table table-cards">
                                             <thead>
                                                 <tr>
                                                     <th>Student ID</th>
@@ -648,10 +648,10 @@ $csrf_token = $csrf_token ?? '';
                                             <tbody>
                                                 <?php foreach ($analytics_failed as $student_row): ?>
                                                     <tr>
-                                                        <td><?php echo htmlspecialchars($student_row['student_id']); ?></td>
-                                                        <td><strong><?php echo htmlspecialchars($student_row['name']); ?></strong></td>
-                                                        <td><?php echo number_format((float) $student_row['score'], 2); ?>%</td>
-                                                        <td><span class="status-chip danger"><?php echo htmlspecialchars($student_row['status']); ?></span></td>
+                                                        <td data-label="Student ID"><?php echo htmlspecialchars($student_row['student_id']); ?></td>
+                                                        <td data-label="Name"><strong><?php echo htmlspecialchars($student_row['name']); ?></strong></td>
+                                                        <td data-label="Overall Grade"><?php echo number_format((float) $student_row['score'], 2); ?>%</td>
+                                                        <td data-label="Status"><span class="status-chip danger"><?php echo htmlspecialchars($student_row['status']); ?></span></td>
                                                     </tr>
                                                 <?php endforeach; ?>
                                             </tbody>
@@ -668,7 +668,7 @@ $csrf_token = $csrf_token ?? '';
                                         <h3 style="font-size: 1rem;">Incomplete Records</h3>
                                     </div>
                                     <div class="table-responsive">
-                                        <table class="analytics-table">
+                                        <table class="analytics-table table-cards">
                                             <thead>
                                                 <tr>
                                                     <th>Student ID</th>
@@ -682,22 +682,22 @@ $csrf_token = $csrf_token ?? '';
                                             <tbody>
                                                 <?php foreach ($analytics_partial as $student_row): ?>
                                                     <tr>
-                                                        <td><?php echo htmlspecialchars($student_row['student_id']); ?></td>
-                                                        <td><strong><?php echo htmlspecialchars($student_row['name']); ?></strong></td>
-                                                        <td><span class="status-chip warning">Partial</span></td>
-                                                        <td><?php echo number_format((float) $student_row['midterm'], 2); ?>%</td>
-                                                        <td>—</td>
-                                                        <td><span style="color: var(--text-muted); font-weight: 700;">N/A</span></td>
+                                                        <td data-label="Student ID"><?php echo htmlspecialchars($student_row['student_id']); ?></td>
+                                                        <td data-label="Name"><strong><?php echo htmlspecialchars($student_row['name']); ?></strong></td>
+                                                        <td data-label="Status"><span class="status-chip warning">Partial</span></td>
+                                                        <td data-label="Midterm"><?php echo number_format((float) $student_row['midterm'], 2); ?>%</td>
+                                                        <td data-label="Finals">—</td>
+                                                        <td data-label="Overall Grade"><span style="color: var(--text-muted); font-weight: 700;">N/A</span></td>
                                                     </tr>
                                                 <?php endforeach; ?>
                                                 <?php foreach ($analytics_no_data as $student_row): ?>
                                                     <tr>
-                                                        <td><?php echo htmlspecialchars($student_row['student_id']); ?></td>
-                                                        <td><strong><?php echo htmlspecialchars($student_row['name']); ?></strong></td>
-                                                        <td><span class="status-chip warning">No Data</span></td>
-                                                        <td>—</td>
-                                                        <td>—</td>
-                                                        <td><span style="color: var(--text-muted); font-weight: 700;">N/A</span></td>
+                                                        <td data-label="Student ID"><?php echo htmlspecialchars($student_row['student_id']); ?></td>
+                                                        <td data-label="Name"><strong><?php echo htmlspecialchars($student_row['name']); ?></strong></td>
+                                                        <td data-label="Status"><span class="status-chip warning">No Data</span></td>
+                                                        <td data-label="Midterm">—</td>
+                                                        <td data-label="Finals">—</td>
+                                                        <td data-label="Overall Grade"><span style="color: var(--text-muted); font-weight: 700;">N/A</span></td>
                                                     </tr>
                                                 <?php endforeach; ?>
                                             </tbody>
@@ -712,7 +712,7 @@ $csrf_token = $csrf_token ?? '';
                                 </div>
                                 <?php if (!empty($analytics_heatmap) && !empty($heatmap_categories)): ?>
                                     <div class="table-responsive">
-                                        <table class="analytics-table">
+                                        <table class="analytics-table table-scroll">
                                             <thead>
                                                 <tr>
                                                     <th>Student</th>

@@ -153,8 +153,8 @@ const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribut
 })();
 
 const ResponsiveManager = {
-    isMobile() { return window.innerWidth <= 640; },
-    isTablet() { return window.innerWidth > 640 && window.innerWidth <= 1024; },
+    isMobile() { return window.innerWidth <= 768; },
+    isTablet() { return window.innerWidth > 768 && window.innerWidth <= 1024; },
     isDesktop() { return window.innerWidth > 1024; },
     onResize(callback) {
         window.addEventListener('resize', callback);
@@ -336,7 +336,7 @@ const EmptyStateBuilder = {
 };
 
 const MobileGradebookRenderer = {
-    tableSelector: 'table',
+    tableSelector: '.gradebook-table',
     cardContainerId: 'mobilegradebookCards',
     allStudents: [],
     extractStudentData() {

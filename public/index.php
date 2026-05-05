@@ -113,6 +113,25 @@ function verify_password_and_upgrade(string $password, string $stored, callable 
     return false;
 }
 
+function get_password_policy_error(string $password): ?string {
+    if (strlen($password) < 12) {
+        return "Password must be at least 12 characters and include uppercase, lowercase, number, and symbol.";
+    }
+    if (!preg_match('/[A-Z]/', $password)) {
+        return "Password must be at least 12 characters and include uppercase, lowercase, number, and symbol.";
+    }
+    if (!preg_match('/[a-z]/', $password)) {
+        return "Password must be at least 12 characters and include uppercase, lowercase, number, and symbol.";
+    }
+    if (!preg_match('/[0-9]/', $password)) {
+        return "Password must be at least 12 characters and include uppercase, lowercase, number, and symbol.";
+    }
+    if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+        return "Password must be at least 12 characters and include uppercase, lowercase, number, and symbol.";
+    }
+    return null;
+}
+
 // Display global success messages (like after a password reset)
 if (isset($_SESSION['global_success'])) {
     $success_message = $_SESSION['global_success'];
@@ -258,26 +277,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Hardcode the role to 'Faculty'
         $role = 'Faculty';
 
-        $check = $conn->prepare("SELECT id FROM users WHERE email = ?");
-        $check->bind_param("s", $email);
-        $check->execute();
-
-        if ($check->get_result()->num_rows > 0) {
-            $error_message = "This email is already registered. Please sign in.";
+        $policy_error = get_password_policy_error($password);
+        if ($policy_error) {
+            $error_message = $policy_error;
         } else {
-            // Use the new OTP Service
-            $result = $otpService->generateAndSendOtp($email, 'registration');
+            $check = $conn->prepare("SELECT id FROM users WHERE email = ?");
+            $check->bind_param("s", $email);
+            $check->execute();
 
-            if ($result['success']) {
-                $_SESSION['otp_context'] = 'register';
-                $_SESSION['pending_email'] = $email;
-                $_SESSION['pending_password_hash'] = password_hash($password, PASSWORD_DEFAULT);
-                $_SESSION['pending_role'] = $role;
-                $_SESSION['last_otp_send_time'] = time();
-
-                $success_message = "A verification code has been sent to your email address.";
+            if ($check->get_result()->num_rows > 0) {
+                $error_message = "This email is already registered. Please sign in.";
             } else {
-                $error_message = $result['error']; // Shows rate limit or Brevo API errors
+                // Use the new OTP Service
+                $result = $otpService->generateAndSendOtp($email, 'registration');
+
+                if ($result['success']) {
+                    $_SESSION['otp_context'] = 'register';
+                    $_SESSION['pending_email'] = $email;
+                    $_SESSION['pending_password_hash'] = password_hash($password, PASSWORD_DEFAULT);
+                    $_SESSION['pending_role'] = $role;
+                    $_SESSION['last_otp_send_time'] = time();
+
+                    $success_message = "A verification code has been sent to your email address.";
+                } else {
+                    $error_message = $result['error']; // Shows rate limit or Brevo API errors
+                }
             }
         }
     }
@@ -392,20 +416,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $new_password = $_POST['new_password'];
         $email = $_SESSION['pending_email'];
 
-        $passwordHash = password_hash($new_password, PASSWORD_DEFAULT);
-        $stmt = $conn->prepare("UPDATE users SET password = ? WHERE email = ?");
-        $stmt->bind_param("ss", $passwordHash, $email);
-        $stmt->execute();
+        $policy_error = get_password_policy_error($new_password);
+        if ($policy_error) {
+            $error_message = $policy_error;
+        } else {
+            $passwordHash = password_hash($new_password, PASSWORD_DEFAULT);
+            $stmt = $conn->prepare("UPDATE users SET password = ? WHERE email = ?");
+            $stmt->bind_param("ss", $passwordHash, $email);
+            $stmt->execute();
 
-        $log_action = "Account password recovered and reset via email OTP.";
-        $log_stmt = $conn->prepare("INSERT INTO audit_logs (user_email, action) VALUES (?, ?)");
-        $log_stmt->bind_param("ss", $email, $log_action);
-        $log_stmt->execute();
+            $log_action = "Account password recovered and reset via email OTP.";
+            $log_stmt = $conn->prepare("INSERT INTO audit_logs (user_email, action) VALUES (?, ?)");
+            $log_stmt->bind_param("ss", $email, $log_action);
+            $log_stmt->execute();
 
-        session_unset();
-        $_SESSION['global_success'] = "Password successfully reset. You can now sign in.";
-        header("Location: index.php");
-        exit();
+            session_unset();
+            $_SESSION['global_success'] = "Password successfully reset. You can now sign in.";
+            header("Location: index.php");
+            exit();
+        }
     }
     }
 }
@@ -439,12 +468,14 @@ $is_forgot_pw = isset($_GET['action']) && $_GET['action'] === 'forgot_password';
             </div>
 
             <?php if (!empty($success_message)): ?><div class="success-box"><?php echo h($success_message); ?></div><?php endif; ?>
+            <?php if (!empty($error_message)): ?><div class="error-box"><?php echo h($error_message); ?></div><?php endif; ?>
 
             <form method="POST">
                 <?php echo csrf_field(); ?>
                 <div class="input-group">
                     <label>Create New Password</label>
-                    <input type="password" name="new_password" required minlength="6">
+                    <input type="password" name="new_password" required minlength="12" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{12,}" title="At least 12 characters with uppercase, lowercase, number, and symbol." autocomplete="new-password">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">At least 12 characters with uppercase, lowercase, number, and symbol.</div>
                 </div>
                 <button type="submit" name="reset_password" class="btn-submit">Save Password</button>
             </form>
@@ -548,7 +579,8 @@ $is_forgot_pw = isset($_GET['action']) && $_GET['action'] === 'forgot_password';
                 </div>
                 <div class="input-group">
                     <label>Create Password</label>
-                    <input type="password" name="password" required minlength="6">
+                    <input type="password" name="password" required minlength="12" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{12,}" title="At least 12 characters with uppercase, lowercase, number, and symbol." autocomplete="new-password">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">At least 12 characters with uppercase, lowercase, number, and symbol.</div>
                 </div>
                 <button type="submit" name="register_step_1" class="btn-submit">Send Verification Code</button>
             </form>

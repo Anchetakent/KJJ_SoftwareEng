@@ -145,7 +145,9 @@ td:last-child { border-right: none; }
     .hamburger-menu { display: block; }
     .main-wrapper { height: 100vh; }
     .top-nav { padding: 0 16px; height: 70px; }
-    .content-area { padding: 24px 16px; overflow-y: auto; }
+    .content-area { padding: 24px 16px; overflow-y: auto; display: flex; flex-direction: column; }
+    .home-init-shell { padding: 24px 16px; flex: 1; width: 100%; min-height: auto; }
+    .home-init-shell .data-card { width: 100%; max-width: 560px; margin: 0 auto; }
     .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     table { min-width: 100%; }
     th, td { padding: 12px 12px; font-size: 0.75rem; white-space: nowrap; }
@@ -163,24 +165,71 @@ td:last-child { border-right: none; }
     .tab-container { padding: 0 16px; gap: 16px; }
     .tab-link { font-size: 0.8rem; padding: 12px 0; }
 }
-@media (max-width: 640px) {
-    table { display: none; }
+@media (max-width: 768px) {
+    .top-nav { padding: 12px; height: auto; flex-direction: column; align-items: flex-start; gap: 12px; }
+    .user-pill { width: 100%; justify-content: space-between; }
+    .content-area { padding: 16px 12px; display: flex; flex-direction: column; }
+    .home-init-shell { padding: 24px 12px; flex: 1; width: 100%; min-height: auto; }
+    .home-init-shell .data-card { width: 100%; max-width: 100%; margin: 0 auto; padding: 28px 20px; }
+    .card-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .header-actions { width: 100%; flex-wrap: wrap; }
+    .section-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .filter-form { flex-direction: column; align-items: stretch; width: 100%; }
+    .filter-form input[type="text"],
+    .filter-form input[type="date"],
+    .filter-form button,
+    .filter-form a { width: 100%; }
+    .filter-form a { text-align: center; }
+    .responsive-grid-form { grid-template-columns: 1fr !important; }
+    .responsive-grid-form button { width: 100%; }
+    .form-actions { flex-direction: column; align-items: stretch; }
+    .category-grid { grid-template-columns: 1fr !important; }
+    .ass-item { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .notes-display { flex-direction: column; align-items: flex-start; }
+    .gradebook-table { display: none; }
     .gradebook-card-view { display: block; }
-    .table-responsive { background: transparent; border: none; }
-    .top-nav { padding: 0 12px; }
-    .content-area { padding: 16px 12px; }
+    .table-responsive { background: transparent; border: none; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .table-cards { width: 100%; border-collapse: separate; border-spacing: 0; }
+    .table-cards thead { display: none; }
+    .table-cards tbody,
+    .table-cards tr,
+    .table-cards td { display: block; width: 100%; }
+    .table-cards tr {
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 12px;
+        margin-bottom: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .table-cards td { padding: 8px 0; border: none; white-space: normal; }
+    .table-cards td::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+    }
+    .table-cards td[colspan] { text-align: center; }
+    .table-cards td[colspan]::before { display: none; }
+    .table-cards td[data-label="Manage"] { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; }
+    .table-cards td[data-label="Manage"] form { margin: 0; }
+    .table-scroll th, .table-scroll td { padding: 8px 8px; font-size: 0.75rem; }
+    .btn-pill, .btn-save, .touch-btn, .edit-grade-btn { min-height: 44px; }
+    .action-link { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin-left: 0; }
     .grade-input, .touch-input { width: 100%; min-height: 52px; font-size: 18px; padding: 14px 12px; }
     .grade-input.gradebook-score-input { width: 90%; min-height: 48px; }
     .analytics-summary { grid-template-columns: 1fr; gap: 12px; padding: 12px; }
     .analytics-metric .value { font-size: 1.25rem; }
-    .analytics-table { font-size: 0.7rem; }
-    th, td { padding: 8px 8px; }
     .home-init-shell { min-height: calc(100vh - 120px); }
     .chart-shell { height: 280px; }
     .tab-container { gap: 0; padding: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .tab-link { padding: 12px 16px; white-space: nowrap; font-size: 0.85rem; }
-    .btn-pill { width: 100%; min-height: 44px; justify-content: center; }
     .btn-save { width: 100%; min-height: 48px; }
+    .delete-confirm-actions { flex-direction: column; align-items: stretch; }
     .error-modal { width: 90%; max-width: 380px; padding: 24px; }
     .bottom-sheet { max-height: 80vh; }
 }

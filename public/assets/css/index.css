@@ -92,7 +92,12 @@ body::before {
 .footer a:hover { color: var(--primary-hover); }
 .policy-text { font-size: 0.75rem; margin-top: 15px; color: #cbd5e1; }
 
-@media (max-width: 640px) {
+@media (max-width: 1024px) {
+    body { padding: 20px 16px; }
+    .login-card { width: min(100%, 460px); }
+}
+
+@media (max-width: 768px) {
     body { padding: 12px; }
     .login-card {
         width: 100%;
